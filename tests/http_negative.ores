@@ -1,37 +1,36 @@
-fnc status_for(String request): Future<String> {
-  return nb {
-    val connection = await network.connect_async("127.0.0.1", 8082);
-    await connection.write_text_async(request);
-    val status = await connection.read_line_async();
-    await connection.close_async();
-    if status.is_none(); then
-      return "missing";
-    fi
-    return status.unwrap();
-  };
-}
-
 pub async routine main(): int {
-  val String wrong_method = await status_for(
+  val wrong_method = await network.connect_async("127.0.0.1", 8082);
+  await wrong_method.write_text_async(
     "POST /hello HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
   );
-  if !wrong_method.starts_with("HTTP/1.1 405"); then
+  val wrong_method_status = await wrong_method.read_line_async();
+  await wrong_method.close_async();
+  if wrong_method_status.is_none() ||
+    !wrong_method_status.unwrap().starts_with("HTTP/1.1 405"); then
     stdio.println("FAIL /hello method gate");
     return 1;
   fi
 
-  val String missing = await status_for(
+  val missing = await network.connect_async("127.0.0.1", 8082);
+  await missing.write_text_async(
     "GET /missing HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
   );
-  if !missing.starts_with("HTTP/1.1 404"); then
+  val missing_status = await missing.read_line_async();
+  await missing.close_async();
+  if missing_status.is_none() ||
+    !missing_status.unwrap().starts_with("HTTP/1.1 404"); then
     stdio.println("FAIL missing route");
     return 1;
   fi
 
-  val String wrong_type = await status_for(
+  val wrong_type = await network.connect_async("127.0.0.1", 8082);
+  await wrong_type.write_text_async(
     "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}"
   );
-  if !wrong_type.starts_with("HTTP/1.1 415"); then
+  val wrong_type_status = await wrong_type.read_line_async();
+  await wrong_type.close_async();
+  if wrong_type_status.is_none() ||
+    !wrong_type_status.unwrap().starts_with("HTTP/1.1 415"); then
     stdio.println("FAIL /echo content type gate");
     return 1;
   fi
