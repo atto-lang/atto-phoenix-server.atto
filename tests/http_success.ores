@@ -1,0 +1,8 @@
+pub async routine main(): int {
+  val String hello = await http.get_text_async("http://127.0.0.1:8082/hello");
+  stdio.println(hello);
+
+  val String echoed = await http.post_text_async("http://127.0.0.1:8082/echo", "ping");
+  stdio.println(echoed);
+  return 0;
+}
