@@ -1,6 +1,6 @@
 # Oreslang Phoenix-style server demo
 
-**Status: empty-demo bootstrap.** This is a prospective Oreslang-native example, **not** a port of or claim of compatibility with Elixir/Phoenix, Plug or the BEAM VM. There is no runnable server here yet.
+**Status: empty-demo bootstrap.** The machine-readable state is in [`demo-status.txt`](demo-status.txt), and [`DEMO_CONTRACT.md`](DEMO_CONTRACT.md) is the fail-closed acceptance contract that must be satisfied before this repository can claim executable behavior. This is a prospective Oreslang-native example, **not** a port of or claim of compatibility with Elixir/Phoenix, Plug or the BEAM VM. There is no runnable server here yet.
 
 ## Integration contract
 
