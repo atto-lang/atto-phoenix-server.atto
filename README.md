@@ -1,19 +1,31 @@
 # Oreslang Phoenix-style server demo
 
-**Status: empty-demo bootstrap.** The machine-readable state is in [`demo-status.txt`](demo-status.txt), and [`DEMO_CONTRACT.md`](DEMO_CONTRACT.md) is the fail-closed acceptance contract that must be satisfied before this repository can claim executable behavior. This is a prospective Oreslang-native example, **not** a port of or claim of compatibility with Elixir/Phoenix, Plug or the BEAM VM. There is no runnable server here yet.
+**Status: loopback HTTP source candidate; exact-head execution pending.**
 
-## Integration contract
+This repository now contains a small Oreslang-native HTTP actor application with:
 
-- [oreslang-spin](https://github.com/ores-truffle-oreslang/oreslang-spin) provides the proposed HTTP actor dispatch/ownership model.
-- [oreslang-rpc](https://github.com/ores-truffle-oreslang/oreslang-rpc) supplies typed operation and schema IDs, with routing metadata kept stable.
-- Example supervision/restart should ultimately use optional `stdlib/otp` behaviours, not force OTP into freestanding `core`.
-- Routes and templating must not bypass sandbox/host-effect grants or emit unsafe HTML; capabilities remain explicit.
+- `GET /hello` → `hello from oreslang`;
+- `POST /echo` → echoes a bounded `text/plain` request body;
+- explicit 404, 405, and 415 behavior;
+- a fixed **127.0.0.1:8082** listener;
+- admission capacity 64, 16 pooled isolated request actors, a 16 KiB body limit, and a 5 second request deadline.
 
-## First executable milestone
+This is an ergonomics/demo project. It is **not** a port of or compatibility claim for Elixir Phoenix, Plug, or the BEAM VM.
 
-1. Implement a tiny GET /hello and POST /echo Oreslang actor application with pinned Spin/router/compiler sources.
-2. Add exact-response/body/status tests and backpressure/graceful-shutdown cases, comparing against common REST conformance before any benchmark claims.
-3. Separate Oreslang guest execution evidence from host mock/adapter tests; unsupported OTP operations fail closed.
-4. Only run private source in reviewed source-org or independently authorized private CI.
+The machine-readable status is in [`demo-status.txt`](demo-status.txt), and [`DEMO_CONTRACT.md`](DEMO_CONTRACT.md) defines the promotion boundary.
 
-Tracked by private [organization integration registry PR #79](https://github.com/ores-truffle-oreslang/oreslang-platform-conformance/pull/79).
+## Exact compiler boundary
+
+`SOURCE_REF` pins the Java/Graal compiler/runtime to `f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa`.
+
+The CI runner never fetches, resets, or mirrors private compiler source. The trusted source-org runner must provide an existing clean `ORESLANG_SOURCE_DIR` at exactly that commit. The contract runner compiler-checks every inventoried source, starts the real Oreslang listener, and drives it with Oreslang HTTP/TCP clients.
+
+A queued or zero-step job is `NOT_EXECUTED`; no runtime pass is claimed until real steps run.
+
+## Current constraints
+
+TLS, HTTP/2, WebSockets, templates, JSON codecs, signed cookies, database access, public bind, and outbound application network access are not part of this demo. The server receives only the loopback listener capability used by the test profile.
+
+Graceful signal-driven draining and hot-generation routing remain later gates. The underlying HTTP runtime exposes bounded server shutdown, but this source candidate does not yet expose an application control path for it.
+
+Tracked by [issue #3](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/issues/3).
