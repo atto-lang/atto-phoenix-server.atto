@@ -1,8 +1,7 @@
-name: Bootstrap demo integrity
+name: Exact Phoenix-style HTTP contracts
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,36 +11,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  bootstrap-integrity:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
+  http-contracts:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, oreslang-jdk25]
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - name: Keep the bootstrap status fail-closed
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Verify source-candidate metadata and inventory
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq '**Status: empty-demo bootstrap.**' README.md
-          grep -Fxq 'schema=1' demo-status.txt
-          grep -Fxq 'status=bootstrap-only' demo-status.txt
-          grep -Fxq 'execution=disabled' demo-status.txt
-          grep -Fxq 'network=disabled' demo-status.txt
-          grep -Fxq 'compiler-evidence=none' demo-status.txt
-          grep -Fxq 'production-claim=false' demo-status.txt
-          test -s DEMO_CONTRACT.md
-          grep -Fq 'exact-head' DEMO_CONTRACT.md
-
-          executable="$(find . -path './.git' -prune -o -type f \( -name '*.ores' -o -name 'pom.xml' -o -name 'Cargo.toml' -o -name 'package.json' \) -print -quit)"
-          if [[ -n "$executable" ]]; then
-            echo "Executable/demo source exists while README still declares an empty bootstrap: $executable" >&2
-            echo "Replace this bootstrap gate with compiler/runtime tests in the same change that makes the demo executable." >&2
-            exit 1
-          fi
-
-          forbidden='pull_request_''target|workflow_''run|repository_''dispatch'
-          if grep -R -n -E "$forbidden" .github/workflows --include='*.yml' --include='*.yaml'; then
-            echo "Privileged/indirect workflow triggers are not allowed in an empty demo bootstrap." >&2
-            exit 1
-          fi
+          expected="$(tr -d '[:space:]' < SOURCE_REF)"
+          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
+          grep -Fxq 'status=source-candidate' demo-status.txt
+          grep -Fxq 'execution=pending-exact-head' demo-status.txt
+          grep -Fxq 'network=loopback-only' demo-status.txt
+          grep -Fxq "compiler-ref=$expected" demo-status.txt
+          actual="$RUNNER_TEMP/oreslang-files.txt"
+          find src tests -type f -name '*.ores' -print | LC_ALL=C sort > "$actual"
+          diff -u ci/oreslang-files.txt "$actual"
+          test -z "$(find src tests -type l -name '*.ores' -print -quit)"
+          awk -F '\t' '!/^#/ && NF {print $2}' ci/contracts.tsv | LC_ALL=C sort > "$RUNNER_TEMP/declared.txt"
+          find tests -maxdepth 1 -type f -name '*.ores' -print | LC_ALL=C sort > "$RUNNER_TEMP/tests.txt"
+          diff -u "$RUNNER_TEMP/declared.txt" "$RUNNER_TEMP/tests.txt"
+      - name: Check runner syntax
+        run: bash -n scripts/run-contracts.sh
+      - name: Require exact local compiler checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
+          expected="$(tr -d '[:space:]' < SOURCE_REF)"
+          test "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" = "$expected"
+          test -z "$(git -C "$ORESLANG_SOURCE_DIR" status --porcelain --untracked-files=all)"
+          echo "demo_head=$(git rev-parse HEAD)"
+          echo "demo_tree=$(git rev-parse HEAD^{tree})"
+          echo "compiler_head=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)"
+          echo "compiler_tree=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD^{tree})"
+      - name: Compile and execute loopback HTTP contracts
+        run: bash scripts/run-contracts.sh
