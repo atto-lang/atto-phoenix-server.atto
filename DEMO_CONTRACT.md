@@ -1,25 +1,40 @@
-# Phoenix-style server demo acceptance contract
+# Phoenix-style server acceptance contract
 
-This is an Oreslang-native HTTP application example inspired by ergonomic server frameworks. It is **not** a Phoenix, Plug, BEAM, or Elixir compatibility claim.
+The repository is an **executable loopback source candidate**. Promotion requires a real green exact-head run on the pinned compiler.
 
-## First server boundary
+## Implemented boundary
 
-- The first executable listener binds loopback only and exposes exactly the reviewed routes.
-- Start with `GET /hello` and `POST /echo`; unknown routes fail closed.
-- Request headers and body are independently bounded. Oversized requests are rejected before actor work is admitted.
-- The echo route returns bytes/text only after content-type and UTF-8 policy is explicit; it must not become a template/HTML sink by accident.
-- No filesystem, subprocess, outbound-network, environment-secret, or reflection capability is granted unless the route requires and tests it.
-- Admission/backpressure is bounded and observable; overload gets an explicit response rather than unbounded actor growth.
+- Fixed loopback listener: `127.0.0.1:8082`.
+- Bounded HTTP admission: 64 active requests.
+- Bounded request body: 16 KiB.
+- Request deadline: 5 seconds.
+- Pooled isolated request actors: 16.
+- `GET /hello` only.
+- `POST /echo` only, with `text/plain` content type.
+- Unknown routes return 404; wrong methods return 405; unsupported echo media types return 415.
+- No filesystem, subprocess, host reflection, public bind, template, database, or arbitrary outbound-network capability.
 
-## Actor lifecycle
+## Required executable evidence
 
-- A request has one documented actor owner and completion future.
-- Cancellation, deadline expiry, client disconnect, handler error, and graceful shutdown settle the request exactly once.
-- Restart/supervision uses Oreslang supervisor semantics; do not emulate OTP behavior and then claim OTP compatibility.
-- Hot reload, when introduced, must route new requests to a new generation while old requests drain under their original generation.
+The exact runner must:
 
-## First executable evidence
+1. prove the demo and compiler commit/tree identities;
+2. prove the compiler checkout is clean and equals `SOURCE_REF`;
+3. compiler-check every path in `ci/oreslang-files.txt`;
+4. start the real Oreslang HTTP listener;
+5. execute every row in `ci/contracts.tsv` with exact stdout oracles;
+6. verify the server remains alive after the negative cases.
 
-The implementation PR must replace bootstrap-only CI with exact-head guest execution. Required tests: exact hello response, echo success, unsupported method, missing route, malformed/oversized body, overload, deadline, client disconnect, handler failure, graceful drain, and repeated restart.
+Current clients verify exact hello/echo bodies plus 404/405/415 status behavior.
 
-No benchmark or framework-comparison claim is valid until the same executable path passes correctness tests first.
+## Remaining gates
+
+- graceful application-triggered drain using `server.shutdown(grace_ms)`;
+- client disconnect and deadline behavior;
+- overload/503 behavior under bounded admission;
+- handler failure mapping and actor replacement;
+- repeated start/stop with no leaked actors or listener state;
+- hot-generation routing where new requests bind to the new generation and old requests drain under the old generation;
+- Java/Graal AOT and LLVM parity before backend-neutral claims.
+
+No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim follows from this source candidate.
