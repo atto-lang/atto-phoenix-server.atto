@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "protocol": "oreslang-ecosystem-integration",
+  "repository": "ores-truffle-oreslang/oreslang-phoenix-server.ores",
+  "role": "application",
+  "upstreams": [
+    "oreslang-source.java"
+  ],
+  "evidence": "not-attested",
+  "note": "Loopback HTTP source candidate; exact runtime evidence remains pending on the approved private runner."
+}
