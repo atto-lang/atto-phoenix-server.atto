@@ -77,3 +77,47 @@ change the Java/Graal compiler, or attest any runtime behavior.
 
 Never advance production readiness, Elixir Phoenix compatibility, or
 five-backend parity based on this dispatcher alone.
+
+## Read-only Actions admission diagnosis (issue #8)
+
+An authorized repository administrator can run the **source-free, read-only**
+`ci/read-actions-admission.sh` helper on a local administrative workstation,
+not on a privileged Oreslang compiler runner. It uses an existing `gh`
+login and `jq`; it never creates a token, clones private source, changes
+settings, reruns jobs, or exposes credentials intentionally.
+
+```bash
+# From the reviewed Phoenix checkout; login to GitHub CLI separately.
+bash ci/read-actions-admission.sh 41224624973
+```
+
+The helper reads the exact run metadata, all job IDs (up to 100), assigned
+runner IDs, completed step counts, and the check-run annotations API for
+each job. The annotation endpoint requires repository **Checks: read**
+permission. If access is denied, obtain that permission rather than
+treating the annotation as nonexistent. Never post unredacted annotation
+content or sensitive logs in a public issue.
+
+Exit status `3` is intentional when the job executed **zero completed
+steps**; the tool prints `NOT_EXECUTED` even if a check shows
+`failure`. Exit `4` means metadata is unavailable or incomplete.
+Exit `0` only means at least one step actually completed—it does **not**
+imply a successful workflow, a Phoenix test pass, or compiler execution.
+If there are 100 or more annotations for any one check run or more than
+100 jobs, the helper refuses to present a potentially partial inventory.
+
+Use the **exact annotation message** to distinguish runner admission /
+private-repository Actions entitlement from workflow compilation or setup.
+Confirm applicable Actions spending limits and billing state with the
+organization administrator. Before enabling native guest execution,
+confirm that the current plan supports *enforceable* required reviewers
+for private environments; GitHub Free/Pro/Team documentation does not
+provide those required-reviewer protections for private repositories.
+Maintain an external independent approval process or an eligible plan
+if the repository cannot enforce this protection. The empty SHA allowlist
+and disabled circuit breaker remain mandatory meanwhile.
+
+Evidence reference: source-free private test run `41223143487` had
+`runner_id=0`, zero steps, while the public source-free control
+`41223210147` in the same alternative organization ran four steps.
+This comparison is diagnostic, not proof of the private billing cause.
