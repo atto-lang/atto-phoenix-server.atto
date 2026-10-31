@@ -25,7 +25,27 @@ The exact runner must:
 5. execute every row in `ci/contracts.tsv` with exact stdout oracles;
 6. verify the server remains alive after the negative cases.
 
-Current clients verify exact hello/echo bodies plus 404/405/415 status behavior.
+Current clients verify exact hello/echo bodies, 404/405/415 status
+behavior, and recovery after clients disconnect mid-header or mid-body.
+The disconnect regression uses only existing native `.ores` client APIs,
+then checks both /hello and /echo remain responsive. It does **not**
+prove all pending resources were freed or that timeouts are enforced.
+
+### New source-only coverage (requires real compiler/runtime execution)
+
+- `tests/http_negative.ores`: HTTP 405 for POST /hello, HEAD /hello,
+  and GET /echo; HTTP 404 for /missing; HTTP 415 for application/json,
+  prefix-lookalike text/plainx, and a missing Content-Type.
+- `tests/http_disconnect.ores`: a connection that closes before its
+  headers finish, a connection advertising more body bytes than supplied,
+  and subsequent successful /hello and /echo requests.
+- `ci/contracts.tsv`: exact exit/stdout oracle for the disconnect test;
+  `ci/oreslang-files.txt`: explicit compiler-check registration.
+
+Tests must not be marked as passing merely because the sources exist or
+host-only registry checks succeed. If the runtime rejects, hangs, or cannot
+compile these cases, keep the PR draft and surface a specific compiler or
+HTTP-runtime defect.
 
 ## Remaining gates
 
