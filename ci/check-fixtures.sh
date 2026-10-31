@@ -53,6 +53,19 @@ git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.ores$' | sort > "$tmp/tracke
 sort "$tmp/contract-sources" > "$tmp/contract-tests"
 diff -u "$tmp/contract-tests" "$tmp/tracked-tests" || fail 'unlisted/absent fixture tests'
 
+# Every tracked .out oracle must be declared, including those outside tests/.
+# Without this, an extra expectation can be silently ignored by CI.
+: > "$tmp/all-oracles"
+while IFS= read -r -d '' path; do
+  case "$path" in
+    *.out) printf '%s\n' "$path" >> "$tmp/all-oracles" ;;
+  esac
+done < <(git ls-files -z)
+LC_ALL=C sort -o "$tmp/all-oracles" "$tmp/all-oracles"
+LC_ALL=C sort "$tmp/contract-oracles" > "$tmp/declared-oracles"
+diff -u "$tmp/declared-oracles" "$tmp/all-oracles" ||
+  fail 'unlisted, misplaced or absent expectation oracle'
+
 # Count *every* tracked source; unexpected names and nested sources fail.
 git ls-files -- src tests | grep -E '\.ores$' | sort > "$tmp/tracked-sources"
 while IFS= read -r file; do
