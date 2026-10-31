@@ -22,14 +22,21 @@ change the Java/Graal compiler, or attest any runtime behavior.
    policy, compiler pin, Bash syntax, fixture inventory, and fixture negatives
    run on an ephemeral GitHub-hosted machine. These tests are never native
    Oreslang guest evidence.
-5. **Environment approval is also mandatory.** Repository administrators
+5. **An additional explicit circuit breaker defaults off.** The native job
+   requires repository Actions variable `PHOENIX_NATIVE_GUEST_ENABLE` to equal
+   the literal string `true`. The variable must remain absent/false until
+   independent administrators confirm that the repository plan supports
+   required environment reviewers and enforceable branch protection. A
+   variable is **not** an approval mechanism. Never set it merely to force a
+   test run or bypass missing environment protection.
+6. **Environment approval is also mandatory.** Repository administrators
    must configure `phoenix-exact-guest-review` to require independent
    reviewers, disallow self-approval where possible, and permit deployments
    from `main` only. Merely naming the environment in a YAML file creates
    **no reviewer protection**. The native runner must be isolated, dedicated,
    and devoid of unrelated secrets. Configure branch protection/rulesets on
    `main` and enforce reviewed changes to the allowlist/workflow.
-6. **Private compiler never leaves its authorized location.** The trusted
+7. **Private compiler never leaves its authorized location.** The trusted
    runner must already hold a clean compiler worktree at exactly
    `f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa`. The workflow never
    clones, downloads, or mirrors this private compiler checkout.
