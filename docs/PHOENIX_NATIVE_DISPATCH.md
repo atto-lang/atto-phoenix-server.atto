@@ -80,6 +80,21 @@ five-backend parity based on this dispatcher alone.
 
 ## Read-only Actions admission diagnosis (issue #8)
 
+The reporter supports the system Bash 3.2 shipped on macOS; it does not
+require Bash 4's `mapfile`. Before relying on results, run the six offline
+mocked API cases from the reviewed branch checkout:
+
+```bash
+bash ci/test-read-actions-admission.sh
+```
+
+These tests require `jq` but not a GitHub login, runner assignment, private
+compiler, or network. They exercise zero-step failure, executed-step success,
+unavailable annotations, empty job inventory, incorrect repository identity,
+and malformed run IDs. A pass validates the reporter's behavior on the
+executing host; it is **not** a GitHub Actions admission or native guest pass.
+
+
 An authorized repository administrator can run the **source-free, read-only**
 `ci/read-actions-admission.sh` helper on a local administrative workstation,
 not on a privileged Oreslang compiler runner. It uses an existing `gh`
