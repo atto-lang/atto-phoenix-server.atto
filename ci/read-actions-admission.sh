@@ -24,9 +24,11 @@ jq -e --argjson id "$run_id" --arg repo "$repo" \
   '.id == $id and .repository.full_name == $repo' "$tmp/run.json" >/dev/null || {
   echo 'Run metadata does not match requested repository and run ID.' >&2; exit 4;
 }
-jq -e '.total_count >= 1 and .total_count <= 100 and (.jobs | type == "array")' \
+jq -e '.total_count >= 1 and .total_count <= 100 and (.jobs | type == "array") and
+  (.total_count == (.jobs | length)) and
+  (all(.jobs[]; (.id | type == "number") and (.id > 0)))' \
   "$tmp/jobs.json" >/dev/null || {
-  echo 'Expected 1–100 jobs; refusing to report a partial or empty job inventory.' >&2; exit 4;
+  echo 'Expected a complete 1–100-job inventory with valid IDs.' >&2; exit 4;
 }
 
 printf 'RUN_ADMISSION_EVIDENCE repo=%s run=%s\n' "$repo" "$run_id"
