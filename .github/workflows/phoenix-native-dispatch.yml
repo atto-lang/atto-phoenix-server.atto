@@ -117,7 +117,11 @@ jobs:
 
   native-http-contracts:
     needs: authorize-and-structure
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    # FAIL CLOSED when repository/environment approval protection is unavailable.
+    # An independent admin must verify protection and explicitly enable the
+    # repository variable only after reviews, branch policy, and runner isolation.
+    # The variable is a circuit breaker, NOT a replacement for approvals.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.PHOENIX_NATIVE_GUEST_ENABLE == 'true' }}
     environment:
       name: phoenix-exact-guest-review
     runs-on: [self-hosted, linux, x64, oreslang-jdk25]
