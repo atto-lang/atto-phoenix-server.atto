@@ -66,7 +66,7 @@ jobs:
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           jq -e --arg sha "$CANDIDATE_SHA" --arg repo "$GITHUB_REPOSITORY" \
             --argjson number "$PR_NUMBER" \
-            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo' \
+            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo and .base.ref == "main"' \
             <<<"$response" >/dev/null || {
             echo 'DENIED: SHA is not the current open same-repo PR head' >&2
             exit 1
@@ -156,7 +156,7 @@ jobs:
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           jq -e --arg sha "$EXPECTED_DEMO_SHA" --arg repo "$GITHUB_REPOSITORY" \
             --argjson number "$PR_NUMBER" \
-            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo' \
+            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo and .base.ref == "main"' \
             <<<"$response" >/dev/null
           : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
           [[ "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" == "f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa" ]]
