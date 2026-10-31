@@ -42,6 +42,8 @@ jobs:
           diff -u "$RUNNER_TEMP/declared.txt" "$RUNNER_TEMP/tests.txt"
       - name: Check runner syntax
         run: bash -n scripts/run-contracts.sh && bash -n ci/check-fixtures.sh
+      - name: Test fixture validator adversarially (host only)
+        run: bash ci/test-fixtures.sh
       - name: Validate exact source and oracle inventory (structural only)
         run: bash ci/check-fixtures.sh
       - name: Require exact local compiler checkout
