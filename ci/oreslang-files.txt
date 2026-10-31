@@ -1,5 +1,7 @@
+src/live_wire.ores
 src/main.ores
 tests/http_bounds.ores
 tests/http_disconnect.ores
 tests/http_negative.ores
 tests/http_success.ores
+tests/live_wire.ores

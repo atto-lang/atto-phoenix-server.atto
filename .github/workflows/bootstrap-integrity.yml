@@ -46,10 +46,10 @@ jobs:
           echo "demo_head=$EXPECTED_DEMO_SHA"
           echo "demo_tree=$(git rev-parse HEAD^{tree})"
       - name: Validate shell syntax
-        run: bash -n scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh
+        run: bash -n scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh ci/test-live-web.sh
       - name: Test fixture policy adversarially (host only)
         run: bash ci/test-fixtures.sh
-      - name: Validate indexed Oreslang sources and oracles (host only)
+      - name: Validate Ores Live browser protocol (host only)\n        run: bash ci/test-live-web.sh\n      - name: Validate indexed Oreslang sources and oracles (host only)
         run: bash ci/check-fixtures.sh
       - name: Record structural-only evidence
         run: echo 'NOT_EXECUTED - no compiler or native Oreslang guest invoked'

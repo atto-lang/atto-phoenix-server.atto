@@ -29,3 +29,16 @@ TLS, HTTP/2, WebSockets, templates, JSON codecs, signed cookies, database access
 Graceful signal-driven draining and hot-generation routing remain later gates. The underlying HTTP runtime exposes bounded server shutdown, but this source candidate does not yet expose an application control path for it.
 
 Tracked by [issue #3](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/issues/3).
+
+## Ores Live v1: protocol foundation (not a WebSocket server)
+
+The `web/ores-live.mjs` browser client implements bounded, versioned,
+same-origin WebSocket DOM diff delivery, snapshots, revision replay,
+resynchronization and text-only safe rendering. `src/live_wire.ores`
+provides pure source-level revision/replay/ack rules with a compiler-backed
+contract **pending exact-head execution**.
+
+See [live updates contract](docs/LIVE_UPDATES_V1.md) and run
+`bash ci/test-live-web.sh` for host-only browser protocol tests.
+**The current HTTP-only demo does not yet expose a WebSocket endpoint,
+LiveSession actor, SSE stream or HTMX server adapter.**

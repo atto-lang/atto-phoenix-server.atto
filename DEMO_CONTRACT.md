@@ -115,3 +115,15 @@ checkout containing the registered three contracts and four sources
 reports `FIXTURE_STRUCTURAL_PASS contracts=3 sources=4`.
 These are **host-only** checks, not execution of the real `.ores`
 clients, the HTTP server, or the pinned Java compiler.
+
+## Live updates candidate (not native guest evidence)
+
+The draft Ores Live v1 protocol/browser client and the pure-source
+`src/live_wire.ores` sequencing fixture are separate from the HTTP
+listener. The new `live-wire` contract must compile and execute under
+the pinned exact-head compiler in the same reviewed-SHA native gate;
+its presence in the inventory does not prove Oreslang syntax or runtime
+behavior. Browser tests are Node host-only and cannot promote WebSockets.
+The current Java HTTP runtime rejects protocol upgrades.
+See `docs/LIVE_UPDATES_V1.md` for unresolved transport, authorization,
+PubSub, lifecycle, reconnect, HTMX, SSE and backend parity gates.

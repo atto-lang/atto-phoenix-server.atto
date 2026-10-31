@@ -1,0 +1,33 @@
+// Shared sequencing rules for Ores Live v1. This is a pure Oreslang module;
+// WebSocket transport and actor-owned subscription state are NOT implemented.
+define module live_wire as
+  // The first event following an empty revision is revision 1.
+  // Guard the increment before arithmetic; reset the stream before overflow.
+  pub fnc next_revision(int previous, int incoming): bool {
+    if previous < 0 || previous >= 2147483646; then
+      return false;
+    fi
+    return incoming == previous + 1;
+  }
+
+  // floor is the oldest retained revision (0 for an empty journal).
+  // A client with last=0 can resume when floor=1; otherwise snapshot.
+  // All returned strings are exhaustive: invalid, snapshot, replay.
+  pub fnc resume_mode(bool same_epoch, int last, int floor, int head): String {
+    if last < 0 || floor < 0 || head < floor || head >= 2147483646; then
+      return "invalid";
+    fi
+    if !same_epoch || last > head; then
+      return "snapshot";
+    fi
+    if floor > 0 && last < floor - 1; then
+      return "snapshot";
+    fi
+    return "replay";
+  }
+
+  // An ack cannot acknowledge future revisions or another epoch.
+  pub fnc ack_allowed(bool same_epoch, int ack, int last_sent): bool {
+    return same_epoch && ack >= 0 && ack <= last_sent;
+  }
+end
