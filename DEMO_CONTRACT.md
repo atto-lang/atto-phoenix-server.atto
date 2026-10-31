@@ -81,3 +81,20 @@ No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim fol
 
 Release remains blocked until the runtime gate runs and the outstanding
 shutdown, overload, isolation and multi-backend requirements above are met.
+
+## Exact-source fixture security verification
+
+The host-side fixture validator checks all Git index entries and rejects
+case-mixed source and oracle extensions (e.g. `.OrEs`, `.oReS`,
+`.OuT`), including filenames with embedded newlines that the
+line-oriented Git output could quote or omit. Accepted Oreslang source
+paths are exactly `src/[a-z0-9_]+.ores` and
+`tests/[a-z0-9_]+.ores`; oracles are exactly
+`tests/[a-z0-9_]+.out`.
+
+The independently executed fixture regression reports
+`FIXTURE_NEGATIVE_TESTS_PASS scenarios=15`. A synthetic local Git
+checkout containing the registered three contracts and four sources
+reports `FIXTURE_STRUCTURAL_PASS contracts=3 sources=4`.
+These are **host-only** checks, not execution of the real `.ores`
+clients, the HTTP server, or the pinned Java compiler.
