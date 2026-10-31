@@ -9,8 +9,9 @@ fail() { printf 'FIXTURE_POLICY_FAILURE: %s\n' "$*" >&2; exit 2; }
 for file in ci/contracts.tsv ci/oreslang-files.txt; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing or symlinked $file"
 done
-# Git-index mode is the authority: reject staged links/submodules even if
-# their checkout has been substituted with an ordinary file.
+# The entire Git index is the authority: reject staged symlinks and gitlinks
+# anywhere, including workflow and runner scripts. Checking only src/tests/ci
+# allows a tracked link elsewhere to escape the reviewed worktree boundary.
 while IFS= read -r -d '' entry; do
   mode="${entry%% *}"
   path="${entry#*$'\t'}"
@@ -19,7 +20,7 @@ while IFS= read -r -d '' entry; do
     *) fail "unsafe indexed mode $mode: $path" ;;
   esac
   [[ -f "$path" && ! -L "$path" ]] || fail "missing/symlinked tracked entry: $path"
-done < <(git ls-files --stage -z -- src tests ci)
+done < <(git ls-files --stage -z)
 
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
