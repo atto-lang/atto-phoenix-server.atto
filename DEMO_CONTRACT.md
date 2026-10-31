@@ -38,3 +38,26 @@ Current clients verify exact hello/echo bodies plus 404/405/415 status behavior.
 - Java/Graal AOT and LLVM parity before backend-neutral claims.
 
 No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim follows from this source candidate.
+
+## CI trust boundary (must be configured outside this repository)
+
+- Unreviewed pull-request code runs **host-only structural checks** on an
+  ephemeral GitHub-hosted runner. It must never run the private compiler or
+  execute guest code with access to a persistent trusted compiler checkout.
+- The exact native runtime job is **manual workflow_dispatch only** and needs
+  an explicit, fully qualified reviewed demo commit SHA. Runner scripts require
+  both the demo worktree and the pinned compiler worktree to be clean at their
+  exact expected commits.
+- The `phoenix-exact-guest-review` GitHub Environment is a *required external
+  operational control*: administrators must configure protected branches/ref
+  restrictions and required human reviewers before any manual run. Merely
+  declaring the environment in YAML does **not** configure those protections.
+- Use a dedicated runner with minimal network access and no unrelated secrets.
+  Compiler checkouts must not be fetched, copied, or mirrored into another
+  organization unless that private-source transfer is independently authorized.
+- A queued, blocked, zero-step, skipped, or host-only green job is **not** native
+  compiler/guest execution proof. Keep `execution=pending-exact-head` until a
+  complete exact-head compile and actual HTTP client/server run succeeds.
+
+Release remains blocked until the runtime gate runs and the outstanding
+shutdown, overload, isolation and multi-backend requirements above are met.
