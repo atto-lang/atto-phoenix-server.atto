@@ -38,6 +38,18 @@ ln -s hello.ores "$test_repo/src/alias.ores"
 git -C "$test_repo" add .
 check_bad
 git -C "$test_repo" rm -q -f -- src/alias.ores
+ln -s hello.ores "$test_repo/src/mixed.OrEs"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/mixed.OrEs
+printf 'placeholder\n' > "$test_repo/src/mixed.pYi"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/mixed.pYi
+printf 'placeholder\n' > "$test_repo/src/mixed.IpYnB"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/mixed.IpYnB
 printf 'bad\n' > "$test_repo/SOURCE_REF"
 git -C "$test_repo" add .
 check_bad
@@ -53,4 +65,4 @@ check_ok rest-legacy
 printf 'new\n' > "$test_repo/scripts/new_tool.py"
 git -C "$test_repo" add .
 check_bad rest-legacy
-printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS scenarios=8\n'
+printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS scenarios=11\n'
