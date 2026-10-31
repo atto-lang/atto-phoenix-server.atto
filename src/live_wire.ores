@@ -14,7 +14,8 @@ define module live_wire as
   // A client with last=0 can resume when floor=1; otherwise snapshot.
   // All returned strings are exhaustive: invalid, snapshot, replay.
   pub fnc resume_mode(bool same_epoch, int last, int floor, int head): String {
-    if last < 0 || floor < 0 || head < floor || head >= 2147483646; then
+    if last < 0 || floor < 0 || head < floor || head >= 2147483646 ||
+       (floor == 0 && head != 0); then
       return "invalid";
     fi
     if !same_epoch || last > head; then

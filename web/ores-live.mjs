@@ -81,10 +81,12 @@ export class OresLiveClient {
       try { this._receive(msg.data); }
       catch (_) { this._fatal('invalid frame'); }
     };
-    socket.onclose = () => {
+    socket.onclose = event => {
       if (socket !== this.socket) return;
       this.ready = false;
       this.onStatus('disconnected');
+      // Permanent server policy rejections must not become reconnect storms.
+      if ([1003, 1008, 1009].includes(event?.code)) this.running = false;
       this._retry();
     };
     socket.onerror = () => this.onStatus('transport-error');

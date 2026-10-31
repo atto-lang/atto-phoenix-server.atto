@@ -15,7 +15,9 @@ pub routine main(): int {
      live_wire.resume_mode(false, 7, 5, 9) != "snapshot" ||
      live_wire.resume_mode(true, 10, 5, 9) != "snapshot" ||
      live_wire.resume_mode(true, -1, 0, 9) != "invalid" ||
-     live_wire.resume_mode(true, 0, 4, 3) != "invalid"; then
+     live_wire.resume_mode(true, 0, 4, 3) != "invalid" ||
+     live_wire.resume_mode(true, 0, 0, 9) != "invalid" ||
+     live_wire.resume_mode(true, 0, 0, 0) != "replay"; then
     stdio.println("FAIL replay boundary");
     return 1;
   fi

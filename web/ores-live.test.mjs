@@ -21,7 +21,7 @@ class Socket {
   open() { this.readyState = 1; this.onopen(); }
   send(raw) { this.messages.push(JSON.parse(raw)); }
   receive(frame) { this.onmessage({data: typeof frame === 'string' ? frame : JSON.stringify(frame)}); }
-  close(code) { this.closedCode = code; this.readyState = 3; this.onclose?.(); }
+  close(code) { this.closedCode = code; this.readyState = 3; this.onclose?.({code}); }
 }
 const doc = new Document();
 const root = doc.named('root');
@@ -92,6 +92,11 @@ test('wrong epoch patch requests new snapshot',()=>{
 test('out-of-root target fails closed before DOM mutation',()=>{
   sockets[1].receive(frame('snapshot',4,[{op:'text',id:'counter',text:'partial'},{op:'text',id:outsider.id,text:'unsafe'}],'epoch_B'));
   assert.equal(counter.textContent,'replayed'); assert.equal(sockets[1].closedCode,1008);
+});
+test('permanent policy denial does not reconnect',()=>{
+  const c = new OresLiveClient({url:'wss://app.example/live',baseUrl:'https://app.example',root,topic:'room:1',csrf:'0123456789abcdef',socketFactory:()=>new Socket(SUBPROTOCOL)});
+  c.start(); c.socket.open(); c.socket.close(1008);
+  assert.equal(c.running,false); assert.equal(c.timer,null);
 });
 test('bad connection URL rejected',()=>{
   assert.throws(()=>new OresLiveClient({url:'wss://other.example/live',baseUrl:'https://app.example',root,topic:'room:1',csrf:'0123456789abcdef'}));
