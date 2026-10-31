@@ -1,0 +1,36 @@
+# Host-only evidence for a first-party LiveView protocol reference.
+# Never execute Oreslang guests or access private compiler sources here.
+name: LiveView host reference
+on:
+  pull_request:
+    paths:
+      - 'liveview/**'
+      - '.github/workflows/liveview-host-reference.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reference-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 SHA pinned
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Prove exact checked-out SHA and host runtime
+        shell: bash
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED" || {
+            # pull_request synthetic merge refs are not candidate heads;
+            # this job must not invent an exact-head attestation.
+            echo 'NOT_EXACT_PR_HEAD'; exit 1;
+          }
+          node --version
+      - name: Offline WebSocket/LiveView reference tests
+        run: node --test liveview/tests/*.test.mjs
+      - name: Scope declaration
+        run: echo 'HOST_REFERENCE_ONLY - no native compiler, Oreslang guest, or parity proof'
