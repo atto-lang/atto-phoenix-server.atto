@@ -35,9 +35,10 @@ jq -cr '.jobs[] | {job_id: .id, name, status, conclusion, runner_id,
   executed_step_count: ([.steps[]? | select(.status == "completed")] | length),
   step_count: (.steps // [] | length)}' "$tmp/jobs.json"
 
-mapfile -t ids < <(jq -r '.jobs[].id' "$tmp/jobs.json")
+# macOS ships Bash 3.2: avoid mapfile, which is Bash 4+ only.
+# Never resolve annotation API errors as 'no annotations'.
 annotations_unavailable=0
-for id in "${ids[@]}"; do
+while IFS= read -r id; do
   if gh api "repos/$repo/check-runs/$id/annotations?per_page=100" > "$tmp/annotations.json"; then
     jq -e 'type == "array" and length < 100' "$tmp/annotations.json" >/dev/null || {
       echo "ANNOTATIONS_INCOMPLETE_OR_INVALID job_id=$id" >&2
@@ -50,7 +51,7 @@ for id in "${ids[@]}"; do
     echo "CHECK_ANNOTATIONS_UNAVAILABLE job_id=$id (Checks read permission or endpoint failure)" >&2
     annotations_unavailable=1
   fi
-done
+done < <(jq -r '.jobs[].id' "$tmp/jobs.json")
 
 executed="$(jq '[.jobs[] | .steps[]? | select(.status == "completed")] | length' "$tmp/jobs.json")"
 assigned="$(jq '[.jobs[] | select((.runner_id // 0) > 0)] | length' "$tmp/jobs.json")"
