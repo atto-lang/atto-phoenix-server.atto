@@ -2,7 +2,7 @@
 # Exact, host-only fixture inventory: NEVER marks native guest tests executed.
 set -euo pipefail
 export LC_ALL=C
-root="$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd -P)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$root"
 fail() { printf 'FIXTURE_POLICY_FAILURE: %s\n' "$*" >&2; exit 2; }
 [[ "$(git rev-parse --show-toplevel)" == "$root" ]] || fail 'repository root mismatch'
@@ -12,8 +12,8 @@ done
 # Git-index mode is the authority: reject staged links/submodules even if
 # their checkout has been substituted with an ordinary file.
 while IFS= read -r -d '' entry; do
-  mode="\${entry%% *}"
-  path="\${entry#*$'\t'}"
+  mode="${entry%% *}"
+  path="${entry#*$'\t'}"
   case "$mode" in
     100644|100755) ;;
     *) fail "unsafe indexed mode $mode: $path" ;;
@@ -60,6 +60,14 @@ while IFS= read -r file; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked Oreslang source: $file"
 done < "$tmp/tracked-sources"
 [[ -s "$tmp/tracked-sources" ]] || fail 'no Oreslang source'
+git ls-files | grep -E '\.ores
+if ! diff -u ci/oreslang-files.txt "$tmp/tracked-sources"; then
+  fail 'compiler-check inventory must match exactly, sorted and unique'
+fi
+printf 'FIXTURE_STRUCTURAL_PASS contracts=%s sources=%s\n' "$(wc -l < "$tmp/contract-tests")" "$(wc -l < "$tmp/tracked-sources")"
+echo 'NOT_EXECUTED: no Oreslang compiler/guest invoked'
+ | sort > "$tmp/all-sources"
+diff -u "$tmp/all-sources" "$tmp/tracked-sources" || fail 'Oreslang source outside src/tests or unsupported path'
 if ! diff -u ci/oreslang-files.txt "$tmp/tracked-sources"; then
   fail 'compiler-check inventory must match exactly, sorted and unique'
 fi
