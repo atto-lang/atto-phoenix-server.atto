@@ -1,3 +1,4 @@
 src/main.ores
+tests/http_disconnect.ores
 tests/http_negative.ores
 tests/http_success.ores
