@@ -22,8 +22,8 @@ while IFS= read -r -d '' path; do
   count=$((count+1))
   (( count <= 50000 )) || { echo "POLICY_FAILURE: file budget" >&2; exit 2; }
   if [[ -L "$path" ]]; then
-    case "${path,,}" in
-      *.ores|*.py|*.pyi|*.ipynb)
+    case "$path" in
+      *.[Oo][Rr][Ee][Ss]|*.[Pp][Yy]|*.[Pp][Yy][Ii]|*.[Ii][Pp][Yy][Nn][Bb])
         echo "POLICY_FAILURE: symlinked source: $path" >&2; exit 2 ;;
     esac
   fi
@@ -36,8 +36,8 @@ while IFS= read -r -d '' path; do
         ;;
     esac
   fi
-  case "${path,,}" in
-    *.py|*.pyi|*.ipynb)
+  case "$path" in
+    *.[Pp][Yy]|*.[Pp][Yy][Ii]|*.[Ii][Pp][Yy][Nn][Bb])
       if (( ! allowed )); then
         printf 'POLICY_FAILURE: Python source is not permitted: %s\n' "$path" >&2
         exit 2
