@@ -49,6 +49,20 @@ while IFS= read -r file; do
   git ls-files --error-unmatch -- "$file" >/dev/null 2>&1 || fail "untracked fixture/oracle: $file"
 done < <(cat "$tmp/contract-sources" "$tmp/contract-oracles")
 
+# Case-mixed extensions and quoted/newline filenames must not escape the
+# source-oracle inventory. NUL-delimited Git index paths are authoritative;
+# all accepted source and oracle filenames use the canonical lowercase form.
+while IFS= read -r -d '' path; do
+  case "$path" in
+    *.[Oo][Rr][Ee][Ss])
+      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.ores$ ]] ||
+        fail "noncanonical Oreslang source path: $path" ;;
+    *.[Oo][Uu][Tt])
+      [[ "$path" =~ ^tests/[a-z0-9_]+\.out$ ]] ||
+        fail "noncanonical output oracle path: $path" ;;
+  esac
+done < <(git ls-files -z)
+
 # All committed tests must be declared and compiler-check inventory exact.
 git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.ores$' | sort > "$tmp/tracked-tests"
 sort "$tmp/contract-sources" > "$tmp/contract-tests"
