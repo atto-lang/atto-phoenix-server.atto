@@ -82,6 +82,23 @@ No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim fol
 Release remains blocked until the runtime gate runs and the outstanding
 shutdown, overload, isolation and multi-backend requirements above are met.
 
+## Proposed body-size and deadline regression
+
+The native `tests/http_bounds.ores` client now sends a declared
+`Content-Length: 16385` to a 16 KiB listener, then sends an unfinished
+header section and waits for rejection or connection closure. **Neither
+case may return HTTP 200**, and the listener must still serve `GET
+/hello` afterward. The per-contract runner timeout is 30 seconds.
+
+This is a bounded-recovery probe, not proof of precise five-second
+deadline accounting or of correct body buffering/memory usage. In
+particular, the client declares 16,385 bytes but does not transmit a
+full 16,385-byte body; this primarily checks header admission, not
+allocation under a completed oversized upload. The fixture also cannot
+prove overload/503 or graceful shutdown, which remain separate gates.
+Until the native compiler runs the exact candidate, the result is
+**pending, not passing**.
+
 ## Exact-source fixture security verification
 
 The host-side fixture validator checks all Git index entries and rejects
