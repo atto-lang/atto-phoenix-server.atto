@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source_ref="$(tr -d '[:space:]' < "$root/SOURCE_REF")"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# Execution evidence is meaningful only for the exact approved demo head,
+# without unstaged, staged, or untracked source substitutions.
+: "${EXPECTED_DEMO_SHA:?Supply an independently reviewed exact demo commit SHA}"
+[[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+  { echo "EXPECTED_DEMO_SHA must be a full lowercase commit SHA" >&2; exit 65; }
+[[ "$(git -C "$root" rev-parse --show-toplevel)" == "$root" ]] ||
+  { echo "demo checkout is not repository root" >&2; exit 65; }
+[[ "$(git -C "$root" rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]] ||
+  { echo "demo checkout does not match EXPECTED_DEMO_SHA" >&2; exit 65; }
+[[ -z "$(git -C "$root" status --porcelain --untracked-files=all)" ]] ||
+  { echo "demo checkout must be clean" >&2; exit 65; }
+[[ -f "$root/SOURCE_REF" && ! -L "$root/SOURCE_REF" ]] ||
+  { echo "SOURCE_REF must be a regular non-symlink file" >&2; exit 65; }
+source_ref="$(cat "$root/SOURCE_REF")"
+[[ "$(wc -c < "$root/SOURCE_REF")" -eq 41 ]] ||
+  { echo "SOURCE_REF must be 40 lowercase hex characters plus newline" >&2; exit 64; }
 [[ "$source_ref" =~ ^[0-9a-f]{40}$ ]] ||
   { echo "SOURCE_REF must be an exact lowercase 40-character commit SHA" >&2; exit 64; }
 
@@ -18,6 +33,7 @@ git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 
 command -v mvn >/dev/null 2>&1 || { echo "mvn is required" >&2; exit 69; }
 command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded server teardown" >&2; exit 69; }
+command -v timeout >/dev/null 2>&1 || { echo "timeout is required for bounded guest tests" >&2; exit 69; }
 bash "$root/ci/check-fixtures.sh"
 
 echo "compiler_ref=$source_ref"
