@@ -18,6 +18,7 @@ git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 
 command -v mvn >/dev/null 2>&1 || { echo "mvn is required" >&2; exit 69; }
 command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded server teardown" >&2; exit 69; }
+bash "$root/ci/check-fixtures.sh"
 
 echo "compiler_ref=$source_ref"
 echo "demo_ref=$(git -C "$root" rev-parse HEAD 2>/dev/null || printf 'unversioned')"
