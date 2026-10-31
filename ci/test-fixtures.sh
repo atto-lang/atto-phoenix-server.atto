@@ -88,7 +88,14 @@ check_bad
 git -C "$repo" rm -q -f tests/unlisted.OuT
 # Git can quote an embedded newline in the old non-NUL `git ls-files`
 # output. The strict path regular expression must reject it directly.
-newline_path=tests/newline\nstrange.ores'
+newline_path=
+touch "$repo/$newline_path"
+git -C "$repo" add -- "$newline_path"
+check_bad
+git -C "$repo" rm -q -f -- "$newline_path"
+check_ok
+printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=15\n'
+tests/newline\nstrange.ores'
 touch "$repo/$newline_path"
 git -C "$repo" add -- "$newline_path"
 check_bad
