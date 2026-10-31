@@ -97,66 +97,7 @@ jobs:
           # independently of any candidate-supplied validation script.
           while IFS= read -r -d '' entry; do
             mode="${entry%% *}"
-            rel="${entry#*
-          bash candidate/ci/check-fixtures.sh
-          echo "HOST_STRUCTURAL_VERIFIED sha=$EXPECTED_DEMO_SHA"
-          echo 'NOT_EXECUTED: no native Oreslang compiler or guest invoked'
-
-  native-http-contracts:
-    needs: authorize-and-structure
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
-    environment:
-      name: phoenix-exact-guest-review
-    runs-on: [self-hosted, linux, x64, oreslang-jdk25]
-    timeout-minutes: 25
-    env:
-      EXPECTED_DEMO_SHA: ${{ needs.authorize-and-structure.outputs.candidate_sha }}
-      PR_NUMBER: ${{ inputs.pr_number }}
-    steps:
-      - name: Checkout exactly approved candidate on isolated trusted runner
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-          ref: ${{ needs.authorize-and-structure.outputs.candidate_sha }}
-      - name: Revalidate exact PR head and compiler before guest execution
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          [[ "$GITHUB_REF" == 'refs/heads/main' ]]
-          [[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
-          [[ "$(git rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]]
-          [[ -z "$(git status --porcelain --untracked-files=all)" ]]
-          [[ -f SOURCE_REF && ! -L SOURCE_REF ]]
-          [[ "$(wc -c < SOURCE_REF)" -eq 41 ]]
-          [[ "$(cat SOURCE_REF)" == "f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa" ]]
-          response="$(curl --fail --silent --show-error --retry 2 \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
-          jq -e --arg sha "$EXPECTED_DEMO_SHA" --arg repo "$GITHUB_REPOSITORY" \
-            --argjson number "$PR_NUMBER" \
-            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo' \
-            <<<"$response" >/dev/null
-          : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
-          [[ "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" == "f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa" ]]
-          [[ -z "$(git -C "$ORESLANG_SOURCE_DIR" status --porcelain --untracked-files=all)" ]]
-          echo "demo_head=$EXPECTED_DEMO_SHA"
-          echo "demo_tree=$(git rev-parse HEAD^{tree})"
-          echo "compiler_head=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)"
-          echo "compiler_tree=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD^{tree})"
-      - name: Set up pinned Java toolchain
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Compile and execute real loopback HTTP contracts
-        shell: bash
-        run: bash scripts/run-contracts.sh
-\t'}"
+            rel="${entry#*$'\t'}"
             case "$mode" in
               100644|100755) ;;
               *) echo "DENIED: unsafe indexed entry mode $mode" >&2; exit 1 ;;
