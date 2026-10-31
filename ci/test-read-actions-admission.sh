@@ -21,6 +21,7 @@ case "$2" in
     case "${CASE:-}" in
       executed) printf '{"total_count":1,"jobs":[{"id":99,"name":"host","status":"completed","conclusion":"success","runner_id":123,"steps":[{"status":"completed","conclusion":"success"}]}]}\n';;
       empty) printf '{"total_count":0,"jobs":[]}\n';;
+      partial) printf '{"total_count":2,"jobs":[{"id":99,"name":"host","steps":[]}]}\n';;
       *) printf '{"total_count":1,"jobs":[{"id":99,"name":"host","status":"completed","conclusion":"failure","runner_id":0,"steps":[]}]}\n';;
     esac;;
   repos/example/phoenix/check-runs/99/annotations?per_page=100)
@@ -53,7 +54,8 @@ assert_case() {
 assert_case zero 3 'NOT_EXECUTED: no completed steps'
 assert_case executed 0 'EXECUTED_STEP_EVIDENCE count=1 assigned_runner_jobs=1'
 assert_case annotation_denied 3 'CHECK_ANNOTATIONS_UNAVAILABLE job_id=99'
-assert_case empty 4 'Expected 1–100 jobs'
+assert_case empty 4 'Expected a complete 1–100-job inventory'
+assert_case partial 4 'Expected a complete 1–100-job inventory'
 assert_case wrong_repo 4 'Run metadata does not match'
 if CASE=zero GH_REPO=example/phoenix PATH="$work/bin:$PATH" \
      bash "$helper" invalid >"$work/result" 2>&1; then
