@@ -59,4 +59,16 @@ git -C "$repo" add other/stray.out
 check_bad
 git -C "$repo" rm -q -f other/stray.out
 check_ok
-printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=9\n'
+# The index gate must cover files beyond src/tests/ci, especially workflow
+# and runner-adjacent paths that a trusted job could interpret.
+mkdir -p "$repo/docs"
+ln -s /etc/passwd "$repo/docs/unsafe.md"
+git -C "$repo" add docs/unsafe.md
+check_bad
+git -C "$repo" rm -q -f docs/unsafe.md
+# A gitlink outside the application source tree must fail closed as well.
+git -C "$repo" update-index --add --cacheinfo 160000,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,vendor/unchecked
+check_bad
+git -C "$repo" update-index --force-remove vendor/unchecked
+check_ok
+printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=11\n'
