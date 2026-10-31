@@ -17,6 +17,7 @@ git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
   { echo "compiler checkout must be clean" >&2; exit 65; }
 
 command -v mvn >/dev/null 2>&1 || { echo "mvn is required" >&2; exit 69; }
+command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded server teardown" >&2; exit 69; }
 
 echo "compiler_ref=$source_ref"
 echo "demo_ref=$(git -C "$root" rev-parse HEAD 2>/dev/null || printf 'unversioned')"
@@ -39,24 +40,34 @@ server_log="$tmp/server.log"
 server_pid=""
 
 cleanup() {
-  if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
-    kill -TERM "$server_pid" 2>/dev/null || true
+  # Maven may launch a long-lived guest child; kill the entire isolated
+  # process group, not just the Maven wrapper. Never signal our CI shell group.
+  if [[ -n "$server_pid" ]]; then
+    kill -TERM -- "-$server_pid" 2>/dev/null || true
     for _ in {1..50}; do
-      kill -0 "$server_pid" 2>/dev/null || break
+      kill -0 -- "-$server_pid" 2>/dev/null || break
       sleep 0.1
     done
-    kill -KILL "$server_pid" 2>/dev/null || true
-  fi
-  if [[ -n "$server_pid" ]]; then
+    kill -KILL -- "-$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
   fi
   rm -rf "$tmp"
 }
 trap cleanup EXIT
 
-(
-  run_ores "--allow-net=127.0.0.1:8082 $root/src/main.ores"
-) >"$server_log" 2>&1 &
+# If another process owns this address, a successful TCP readiness probe
+# would wrongly attest that process. Do not start in this ambiguous state.
+if (exec 9<>/dev/tcp/127.0.0.1/8082) 2>/dev/null; then
+  echo "PORT_COLLISION: 127.0.0.1:8082 already accepts connections" >&2
+  exit 73
+fi
+
+setsid bash -c '
+  set -euo pipefail
+  compiler="$1"
+  root="$2"
+  exec mvn -B -ntp -q -e -f "$compiler/pom.xml" -DskipTests exec:java     "-Dexec.args=--allow-net=127.0.0.1:8082 $root/src/main.ores"
+' _ "$compiler" "$root" >"$server_log" 2>&1 &
 server_pid=$!
 
 ready=0
