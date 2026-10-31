@@ -60,13 +60,7 @@ while IFS= read -r file; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked Oreslang source: $file"
 done < "$tmp/tracked-sources"
 [[ -s "$tmp/tracked-sources" ]] || fail 'no Oreslang source'
-git ls-files | grep -E '\.ores
-if ! diff -u ci/oreslang-files.txt "$tmp/tracked-sources"; then
-  fail 'compiler-check inventory must match exactly, sorted and unique'
-fi
-printf 'FIXTURE_STRUCTURAL_PASS contracts=%s sources=%s\n' "$(wc -l < "$tmp/contract-tests")" "$(wc -l < "$tmp/tracked-sources")"
-echo 'NOT_EXECUTED: no Oreslang compiler/guest invoked'
- | sort > "$tmp/all-sources"
+git ls-files | grep -E '\.ores$' | sort > "$tmp/all-sources"
 diff -u "$tmp/all-sources" "$tmp/tracked-sources" || fail 'Oreslang source outside src/tests or unsupported path'
 if ! diff -u ci/oreslang-files.txt "$tmp/tracked-sources"; then
   fail 'compiler-check inventory must match exactly, sorted and unique'
