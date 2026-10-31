@@ -56,8 +56,8 @@ jobs:
 
   http-contracts:
     # Never expose a persistent private-compiler runner to automatic PR code.
-    # Maintainers must explicitly dispatch an exact, reviewed SHA.
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    # Only the default-branch workflow can reach the trusted runner; a\n    # reviewed full SHA and protected-environment approval are also required.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     environment: phoenix-exact-guest-review
     runs-on: [self-hosted, linux, x64, oreslang-jdk25]
     timeout-minutes: 25
