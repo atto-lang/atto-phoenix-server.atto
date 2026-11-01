@@ -150,3 +150,7 @@ actor unsubscribe on gateway shutdown, and a bounded per-view subscriber cap.
 Run `npm test` for the 183-test reference suite and see
 `docs/HARDENING_183.md` for limits, adversarial cases and the native CI gate.
 These tests do not certify a native Oreslang WebSocket runtime.
+
+## Wire conformance extension (41 vectors)
+
+See `docs/WIRE_VECTOR_41.md` for the 41-vector RFC6455 registry and deterministic split-admission tests. These are host-reference tests only; cross-backend native guest evidence remains pending.
