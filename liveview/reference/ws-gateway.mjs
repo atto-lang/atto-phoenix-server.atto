@@ -17,7 +17,7 @@ const websocketProtocols=value=>{
 const unique = req => {
   const count=new Map();
   for(let i=0;i<req.rawHeaders.length;i+=2){const key=req.rawHeaders[i].toLowerCase();count.set(key,(count.get(key)||0)+1);}
-  for(const name of ['origin','host','sec-websocket-key','sec-websocket-version','sec-websocket-protocol','upgrade','connection','cookie','content-length','transfer-encoding'])
+  for(const name of ['origin','host','sec-websocket-key','sec-websocket-version','sec-websocket-protocol','sec-websocket-extensions','upgrade','connection','cookie','content-length','transfer-encoding'])
     if((count.get(name)||0)>1)fail('duplicate security-sensitive header');
 };
 const onLoopback = socket=>['127.0.0.1','::1','::ffff:127.0.0.1'].includes(socket.remoteAddress);
@@ -31,12 +31,15 @@ export function validateUpgrade(req,{origins,hosts,allowLoopbackCleartext=false,
   if(h['content-length']!==undefined||h['transfer-encoding']!==undefined)fail('body framing on upgrade');
   if(!hosts?.has(h.host))fail('unknown Host');
   if(!origins?.has(h.origin))fail('untrusted Origin');
+  // RFC 6454 Origin must be a serialized origin, not a full URL.
   const url=new URL(h.origin);
+  if(url.origin!==h.origin || url.username || url.password)fail('invalid Origin syntax');
   if(url.protocol!=='https:' && !(allowLoopbackCleartext && url.protocol==='http:' && onLoopback(req.socket)))fail('TLS required');
   if(!req.socket.encrypted && !(allowLoopbackCleartext && onLoopback(req.socket)))fail('insecure transport');
   if(!tokenList(h.connection||'').includes('upgrade') || (h.upgrade||'').toLowerCase()!=='websocket')fail('invalid Upgrade');
   if(h['sec-websocket-version']!=='13')fail('unsupported WebSocket version');
-  if(h['sec-websocket-extensions'])fail('extensions disabled');
+  // Presence is an offer even with an empty value; extensions are disabled.
+  if(h['sec-websocket-extensions']!==undefined)fail('extensions disabled');
   const key=h['sec-websocket-key'];
   if(typeof key!=='string'||!/^[A-Za-z0-9+/]{22}==$/.test(key)||(Buffer.from(key,'base64').length!==16||Buffer.from(key,'base64').toString('base64')!==key))fail('invalid WebSocket key');
   if(!websocketProtocols(h['sec-websocket-protocol']).includes('ores-liveview-v1'))fail('missing protocol');

@@ -5,6 +5,13 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 export const TOOLCHAINS=Object.freeze(['java','llvm','wasm','forge','net']);
 export const TOOLCHAIN_ALIASES=Object.freeze({cranelift:'forge',graal:'java',dotnet:'net'});
+export const BACKEND_ADAPTERS=Object.freeze({
+  java:'NIO selector/actor handle',
+  llvm:'epoll/reactor with fixed-storage codec',
+  wasm:'explicit browser/worker/Wasmtime WebSocket import',
+  forge:'native reactor with fixed-storage codec',
+  net:'Kestrel actor transport'
+});
 export const WIRE_BLOB_SHA='931f58c1acd40e4c7e1b0b061f1711a0afe3c9b8';
 export const APPLICATION_FRAMES=Object.freeze(['join','snapshot','ready','event','patch','event_ack','event_rejected','resync']);
 export const APPLICATION_ENTRYPOINT='mount -> event -> reducer -> typed_render -> patch/ack';
@@ -47,7 +54,7 @@ export function verifyToolchainContract(registry) {
     ensure(candidate && candidate.repo===`oreslang-source.${toolchain}`,'unexpected backend identity');
     ensure(candidate.target===(toolchain==='wasm'?'host-adapter':'server'),'wrong transport topology');
     ensure(candidate.guest_liveview_verified===false,'unattested guest promotion');
-    ensure(typeof candidate.host_adapter==='string' && candidate.host_adapter.length>6,'missing host adapter contract');
+    ensure(candidate.host_adapter===BACKEND_ADAPTERS[toolchain], 'backend host adapter contract drift');
   }
   return Object.freeze({structural_contract_valid:true,guest_execution_authenticated:false,backend_parity_certified:false});
 }

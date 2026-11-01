@@ -70,3 +70,12 @@ test('a fully populated synthetic receipt is NOT proof of execution or parity',(
 test('exact blob calculation uses git object format not ordinary file digest',()=>{
   assert.equal(gitBlobSha('test\n'),'9daeafb9864cf43055ae93beb0afd6c7d144bfa4');
 });
+
+test('host adapters are pinned per backend and cannot silently change transport topology',()=>{
+  for(const backend of TOOLCHAINS) {
+    for(const altered of ['',null,'host-only shim','an unaudited network import']) {
+      const candidate=clone();candidate.toolchains[backend].host_adapter=altered;
+      bad(()=>verifyToolchainContract(candidate));
+    }
+  }
+});
