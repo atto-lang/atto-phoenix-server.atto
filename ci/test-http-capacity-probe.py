@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 import socket
+import socketserver
+import threading
 import unittest
 from unittest import mock
 
@@ -246,6 +248,60 @@ class CapacityOracleTests(unittest.TestCase):
         self.assertEqual(len(connections), 64)
         self.assertTrue(all(sock.closed for sock in connections))
         observed.assert_not_called()
+
+    def test_full_loopback_saturation_and_recovery_against_synthetic_server(self):
+        # This is an actual local TCP test, NOT an Oreslang guest test.
+        gate = threading.Lock()
+        active = [0]
+        reply = b"hello from oreslang"
+
+        class Handler(socketserver.BaseRequestHandler):
+            def handle(self):
+                self.request.settimeout(12)
+                request = self.request.recv(8192)
+                if request.startswith(b"GET /hello "):
+                    self.request.sendall(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: " +
+                        str(len(reply)).encode("ascii") +
+                        b"\r\nConnection: close\r\n\r\n" + reply
+                    )
+                    return
+                if not request.startswith(b"POST /echo "):
+                    return
+                with gate:
+                    active[0] += 1
+                    overloaded = active[0] > 64
+                try:
+                    if overloaded:
+                        self.request.sendall(
+                            b"HTTP/1.1 503 Service Unavailable\r\n"
+                            b"Content-Length: 0\r\nConnection: close\r\n\r\n"
+                        )
+                    else:
+                        # Hold the incomplete body until the probe closes it.
+                        while self.request.recv(8192):
+                            pass
+                except (OSError, TimeoutError):
+                    pass
+                finally:
+                    with gate:
+                        active[0] -= 1
+
+        class LocalServer(socketserver.ThreadingTCPServer):
+            allow_reuse_address = True
+            daemon_threads = True
+            request_queue_size = 128
+
+        with LocalServer(("127.0.0.1", 0), Handler) as server:
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                with mock.patch.object(probe, "HOST", "127.0.0.1"), \
+                     mock.patch.object(probe, "PORT", server.server_address[1]):
+                    probe.verify_saturation()
+            finally:
+                server.shutdown()
+                worker.join(timeout=2)
 
 
 if __name__ == "__main__":
