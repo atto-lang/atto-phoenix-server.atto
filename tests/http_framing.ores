@@ -1,0 +1,46 @@
+// HTTP/1.1 framing regression against the real native listener.
+// A conflicting Transfer-Encoding / Content-Length request or multiple
+// different Content-Length values must never dispatch to /echo as a
+// successful body. Closure without an HTTP response is acceptable.
+// This tests transport parser admission, not only application routing.
+pub async routine main(): int {
+  val ambiguous_length = await network.connect_async("127.0.0.1", 8082);
+  await ambiguous_length.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\nContent-Length: 4\r\nContent-Length: 8\r\nConnection: close\r\n\r\npingpong"
+  );
+  val ambiguous_status = await ambiguous_length.read_line_async();
+  await ambiguous_length.close_async();
+  if !ambiguous_status.is_none() &&
+     ambiguous_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL duplicate conflicting Content-Length was accepted");
+    return 1;
+  fi
+
+  val transfer_length = await network.connect_async("127.0.0.1", 8082);
+  await transfer_length.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\nContent-Length: 4\r\nConnection: close\r\n\r\n0\r\n\r\n"
+  );
+  val transfer_status = await transfer_length.read_line_async();
+  await transfer_length.close_async();
+  if !transfer_status.is_none() &&
+     transfer_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL Transfer-Encoding/Content-Length ambiguity was accepted");
+    return 1;
+  fi
+
+  // Reject malformed messages without terminating the listener or
+  // corrupting the framing of independent subsequent requests.
+  val String hello = await http.get_text_async("http://127.0.0.1:8082/hello");
+  if hello != "hello from oreslang"; then
+    stdio.println("FAIL listener unresponsive after framing probes");
+    return 1;
+  fi
+  val String echo = await http.post_text_async("http://127.0.0.1:8082/echo", "framing intact");
+  if echo != "framing intact"; then
+    stdio.println("FAIL echo unresponsive after framing probes");
+    return 1;
+  fi
+
+  stdio.println("PASS Phoenix-style HTTP framing rejection and recovery");
+  return 0;
+}
