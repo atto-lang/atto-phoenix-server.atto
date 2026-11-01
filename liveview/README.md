@@ -141,3 +141,12 @@ forbidden on the first-party socket URL; and void-element DOM patches are
 rejected atomically. Three clean Node.js 22.16.0 runs passed **156/156** each.
 This is not native Oreslang execution or Chromium browser evidence. See
 `docs/HARDENING_156.md` for the test cases, threat model and release gates.
+
+## November 1, 2026 — assembly deadlines and per-view admission
+
+The host reference adds an absolute 15-second incomplete-WebSocket-message
+assembly deadline (configurable and independent of idle timeout), immediate
+actor unsubscribe on gateway shutdown, and a bounded per-view subscriber cap.
+Run `npm test` for the 183-test reference suite and see
+`docs/HARDENING_183.md` for limits, adversarial cases and the native CI gate.
+These tests do not certify a native Oreslang WebSocket runtime.

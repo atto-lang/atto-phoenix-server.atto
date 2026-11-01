@@ -39,17 +39,26 @@ function closeCodeValid(code) {
     (code<1016 || code>=3000); // 1016–2999 reserved
 }
 export class ClientFrameParser {
-  constructor({maxMessage=WS_MAX_MESSAGE,maxBuffer=WS_MAX_MESSAGE+64,maxFragments=64,maxFramesPerFeed=256}={}) {
+  constructor({maxMessage=WS_MAX_MESSAGE,maxBuffer=WS_MAX_MESSAGE+64,maxFragments=64,maxFramesPerFeed=256,maxMessageAgeMs=15000,now=()=>performance.now()}={}) {
     if(!Number.isSafeInteger(maxMessage)||maxMessage<1||
        !Number.isSafeInteger(maxBuffer)||maxBuffer<1||
        !Number.isSafeInteger(maxFragments)||maxFragments<1||
-       !Number.isSafeInteger(maxFramesPerFeed)||maxFramesPerFeed<1)fail('invalid parser budgets');
+       !Number.isSafeInteger(maxFramesPerFeed)||maxFramesPerFeed<1||
+       !Number.isSafeInteger(maxMessageAgeMs)||maxMessageAgeMs<1||typeof now!=='function')fail('invalid parser budgets');
     this.maxMessage=maxMessage;this.maxBuffer=maxBuffer;this.maxFragments=maxFragments;this.maxFramesPerFeed=maxFramesPerFeed;this.pending=Buffer.alloc(0);
     this.fragments=[];this.fragmentBytes=0;this.fragmentOpcode=null;this.closed=false;
+    this.maxMessageAgeMs=maxMessageAgeMs;this.now=now;this.messageStartedAt=null;
   }
   feed(bytes) {
     if(this.closed)fail('frame after close');
     if(!Buffer.isBuffer(bytes))bytes=Buffer.from(bytes);
+    // A peer must not hold an incomplete frame (or fragmented message)
+    // indefinitely by supplying one byte just before each socket idle timeout.
+    const checkAge=()=>{
+      if(this.messageStartedAt!==null && this.now()-this.messageStartedAt>this.maxMessageAgeMs)
+        fail('message assembly deadline exceeded',1008);
+    };
+    checkAge();
     // maxBuffer is the incomplete-frame budget, not the total TCP read size.
     // Parse complete frames before admitting more bytes, so coalesced frames
     // cannot spuriously trip memory limits. Limit per-feed work independently.
@@ -57,6 +66,8 @@ export class ClientFrameParser {
     let offset=0, frameCount=0;
     while(offset<bytes.length || (offset===0 && bytes.length===0)) {
       if(offset<bytes.length) {
+        if(this.messageStartedAt===null)this.messageStartedAt=this.now();
+        checkAge();
         const available=this.maxBuffer-this.pending.length;
         if(available<=0)fail('inbound buffer budget exceeded',1009);
         const size=Math.min(available,bytes.length-offset);
@@ -65,6 +76,8 @@ export class ClientFrameParser {
       }
       let progress=false;
       while(this.pending.length>=2) {
+      if(this.messageStartedAt===null)this.messageStartedAt=this.now();
+      checkAge();
       const a=this.pending[0],b=this.pending[1], opcode=a&15,fin=!!(a&128),masked=!!(b&128),control=opcode>=8;
       if(a&0x70)fail('RSV bits set without extension');
       if(!masked)fail('unmasked client frame');
@@ -102,7 +115,12 @@ export class ClientFrameParser {
         if(length>=2) {const code=data.readUInt16BE(0);if(!closeCodeValid(code))fail('invalid close code');decode(data.subarray(2));}
         this.closed=true;messages.push({type:'close',data});break;
       }
-      if(opcode===9||opcode===10) {messages.push({type:opcode===9?'ping':'pong',data});continue;}
+      if(opcode===9||opcode===10) {
+        messages.push({type:opcode===9?'ping':'pong',data});
+        // Standalone heartbeats are frames, not unfinished data messages.
+        if(this.fragmentOpcode===null)this.messageStartedAt=null;
+        continue;
+      }
       if(opcode===0) {
         if(this.fragmentOpcode===null)fail('continuation without starting frame');
       } else {
@@ -118,6 +136,7 @@ export class ClientFrameParser {
         if(this.fragmentOpcode!==1)fail('binary data not supported',1003);
         messages.push({type:'text',data:decode(full)});
         this.fragmentOpcode=null;this.fragmentBytes=0;this.fragments=[];
+        this.messageStartedAt=null; // next data message starts a new deadline
       }
       }
       if(offset===bytes.length)break;

@@ -32,12 +32,12 @@ export function validateUpgrade(req,{origins,hosts,allowLoopbackCleartext=false,
   if(!tokenList(h['sec-websocket-protocol']||'').includes('ores-liveview-v1'))fail('missing protocol');
   return {accept:createHash('sha1').update(key+MAGIC).digest('base64'),origin:h.origin};
 }
-export function installReferenceGateway(server,{origins,hosts,authenticate,getSession,maxConnections=32,maxPendingBytes=131072,maxMessagesPerWindow=128,messageWindowMs=10000,maxControlFramesPerWindow=32,controlWindowMs=1000,idleTimeoutMs=60000,allowLoopbackCleartext=false}={}) {
+export function installReferenceGateway(server,{origins,hosts,authenticate,getSession,maxConnections=32,maxPendingBytes=131072,maxMessagesPerWindow=128,messageWindowMs=10000,maxControlFramesPerWindow=32,controlWindowMs=1000,idleTimeoutMs=60000,maxMessageAgeMs=15000,allowLoopbackCleartext=false}={}) {
   if(typeof authenticate!=='function'||typeof getSession!=='function')throw new TypeError('explicit session authentication and lookup required');
-  for(const [name,value] of Object.entries({maxConnections,maxPendingBytes,maxMessagesPerWindow,messageWindowMs,maxControlFramesPerWindow,controlWindowMs,idleTimeoutMs})) {
+  for(const [name,value] of Object.entries({maxConnections,maxPendingBytes,maxMessagesPerWindow,messageWindowMs,maxControlFramesPerWindow,controlWindowMs,idleTimeoutMs,maxMessageAgeMs})) {
     if(!Number.isSafeInteger(value)||value<1)throw new RangeError('invalid transport limit: '+name);
   }
-  const sockets=new Set();
+  const sockets=new Map(); // socket -> idempotent detach callback
   const faultCounts={attach:0,detach:0,output:0};
   const reject=(socket,code=403)=>{
     if(!socket.destroyed){socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);}
@@ -51,7 +51,7 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
     catch {reject(socket,403);return;}
     const connectionId=randomUUID();
     const transport={connectionId,origin:approval.origin,user:principal.id};
-    const parser=new ClientFrameParser({maxMessage:WS_MAX_MESSAGE});
+    const parser=new ClientFrameParser({maxMessage:WS_MAX_MESSAGE,maxMessageAgeMs});
     let finished=false,pings=0,lastPing=0,controls=0,controlWindowStart=Date.now(),messages=0,windowStart=Date.now();
     const cleanup=()=>{
       if(finished)return;
@@ -75,7 +75,7 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
       finally {cleanup();}
     };
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+approval.accept+'\r\nSec-WebSocket-Protocol: ores-liveview-v1\r\n\r\n');
-    sockets.add(socket);
+    sockets.set(socket,cleanup);
     socket.setTimeout(idleTimeoutMs,()=>shutdown(1001,'idle timeout'));
     try {
       if(typeof session.attach==='function')session.attach(connectionId,(reply)=>{
@@ -119,5 +119,10 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
     if(head?.length)receive(head);
   };
   server.on('upgrade',onUpgrade);
-  return {close(){server.off('upgrade',onUpgrade);for(const socket of [...sockets]){socket.destroy();}sockets.clear();},get connections(){return sockets.size;},get faults(){return {...faultCounts};}};
+  return {close(){
+    server.off('upgrade',onUpgrade);
+    // Detach synchronously: waiting for Node's future 'close' event can leave
+    // actor subscriptions and privileges alive after gateway shutdown.
+    for(const [socket,cleanup] of [...sockets]){cleanup();socket.destroy();}
+  },get connections(){return sockets.size;},get faults(){return {...faultCounts};}};
 }

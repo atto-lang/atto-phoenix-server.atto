@@ -32,15 +32,16 @@ export function diffView(previous,next,rootId='root') {
   return ops;
 }
 export class LiveViewSession {
-  constructor({viewId,sessionId,csrfToken,rootId='root',origin,initialState,render,reduce,authorize,maxHistory=32,maxDedup=256}) {
+  constructor({viewId,sessionId,csrfToken,rootId='root',origin,initialState,render,reduce,authorize,maxHistory=32,maxDedup=256,maxSubscribers=64}) {
     assert(typeof viewId==='string' && typeof sessionId==='string' && typeof csrfToken==='string' && csrfToken.length>=16,'identity/CSRF required');
     assert(typeof render==='function' && typeof reduce==='function','callbacks required');
     assert(typeof authorize==='function','authenticated transport guard required');
     assert(Number.isSafeInteger(maxHistory) && maxHistory>=1 && maxHistory<=256,'invalid replay history bound');
     assert(Number.isSafeInteger(maxDedup) && maxDedup>=1 && maxDedup<=4096,'invalid event replay bound');
+    assert(Number.isSafeInteger(maxSubscribers) && maxSubscribers>=1 && maxSubscribers<=4096,'invalid subscriber bound');
     this.viewId=viewId; this.sessionId=sessionId; this.csrfToken=csrfToken; this.rootId=rootId; this.origin=origin; this.joined=new Set();
     this.state=freeze(initialState); this.render=render; this.reduce=reduce;
-    this.authorize=authorize; this.maxHistory=maxHistory; this.maxDedup=maxDedup;
+    this.authorize=authorize; this.maxHistory=maxHistory; this.maxDedup=maxDedup; this.maxSubscribers=maxSubscribers;
     this.revision=0; this.history=[]; this.seen=new Map(); this.subscribers=new Map();
     this.tree=freeze(render(freeze(this.state)));validateTree(this.tree,origin,[rootId]);
     this._packet(this._snapshot()); // initial state must fit a complete wire snapshot
@@ -51,6 +52,8 @@ export class LiveViewSession {
   // roll back an already committed event or block another session.
   attach(connectionId, send) {
     assert(typeof connectionId==='string' && connectionId.length>0 && typeof send==='function', 'invalid subscription');
+    assert(!this.subscribers.has(connectionId),'duplicate subscription');
+    assert(this.subscribers.size<this.maxSubscribers,'subscriber limit exceeded');
     this.subscribers.set(connectionId,send);
   }
   detach(connectionId) { this.joined.delete(connectionId); this.subscribers.delete(connectionId); }
