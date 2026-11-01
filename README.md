@@ -38,3 +38,16 @@ matching. Host-only CI now adds `ci/test-runner-preflight.sh` and
 more fixture-index adversaries. These are intentionally **not** claims
 of Java/Graal native guest execution. The reviewed exact-head runner
 gate and protected-environment approval remain prerequisites.
+
+## Byte-accurate HTTP acceptance tests
+
+The native contract runner now performs an additional independent,
+dependency-free Python TCP probe **against the real Oreslang loopback
+listener**. It checks fully transmitted 16 KiB boundaries, completed
+16 KiB + 1 overflow rejection, malformed framing, 32 concurrent
+requests with isolated response bodies and stalled-header closure.
+
+`python3 -I -B ci/test-http-wire-probe.py` runs the corresponding
+host-only failure-oracle tests without a compiler or application
+listener. These offline tests are not a substitute for native
+execution; the reviewed private-runner gate remains closed.
