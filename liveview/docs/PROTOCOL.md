@@ -39,6 +39,7 @@ Server-to-client examples:
 {"v":1,"type":"patch","prev":0,"rev":1,"ops":[{"op":"set_text","id":"value","text":"1"}]}
 {"v":1,"type":"event_ack","event_id":"random-uuid","rev":1}
 {"v":1,"type":"ready","rev":1}
+{"v":1,"type":"event_rejected","event_id":"random-uuid","code":"stale_revision","rev":2}
 {"v":1,"type":"resync_required"}
 {"v":1,"type":"error","code":"not_authorized","fatal":true}
 ```
@@ -47,7 +48,7 @@ Server-to-client examples:
 Revisions are monotonically increasing **per view**. Every patch has
 `rev = prev + 1`. The client refuses out-of-order patches and requests resync;
 server replays an available consecutive bounded patch chain or sends a snapshot.
-`ready` completes join or resync and permits outbound events.
+`ready` completes join or resync and permits outbound events. `resync_required` remains available for transport-level revisions; `event_rejected` carries an explicit event ID so a stale queued command does not livelock the client.
 
 ## State machine and delivery
 
@@ -58,7 +59,7 @@ server replays an available consecutive bounded patch chain or sends a snapshot.
   Client queue maximum: 128; in-flight maximum: 1. ACK after state commit and
   patch/snapshot publication. Outstanding IDs are retried on reconnect.
 - Server deduplicates event IDs within an actor session, and rejects stale
-  `base_rev` without mutating state. Reference defaults: 256 remembered event IDs
+  `base_rev` with an `event_rejected` frame without mutating state. The browser removes that rejected command, reports an application conflict, and requests a fresh snapshot; it MUST NOT automatically replay the command with a new base revision. Event ID replay is accepted only when principal, event name, payload serialization, and base revision match the original command. Reference defaults: 256 remembered event IDs
   and 32 patch revisions. Eviction is bounded; **this does not provide
   exactly-once side effects across actor restart or failover**. Native system
   must persist idempotency records transactionally for durable effects.
@@ -92,9 +93,9 @@ and recovery from DOM hooks mutated by other libraries.
 | XSS via server data | Typed text nodes, escaping, tag/attribute/URL allowlists, CSP | Host reference tests |
 | Cross-root DOM corruption | Verify every target belongs to owning view | Host reference tests |
 | Out-of-order updates | Revision predecessor check and resync | Host reference tests |
-| Duplicate events | Session-scoped event ID replay guard | Host reference tests; durable ledger pending |
+| Duplicate events | ID bound to authenticated command fingerprint | Host reference tests; durable ledger pending |
 | Slow client / overload | Bounded send buffers, fairness, disconnect and 503/1013 | **Native gateway pending** |
-| Message fragment / masking bugs | RFC 6455 parser, control frames and UTF-8 checks | **Native gateway pending** |
+| Message fragment / masking bugs | RFC 6455 parser, control frames and UTF-8 checks | Host wire vectors and real TCP tests; **native gateway pending** |
 | Actor crash / restart | Supervisor escalation, lifecycle cleanup, authorization recheck | **Native guest tests pending** |
 | Hot reload | Bind each connection to immutable generation until drained | **Native integration pending** |
 | CSP / HTMX script execution | Isolated endpoints, allowlisted OOB HTML, safe headers | Host serializer only; browser integration pending |

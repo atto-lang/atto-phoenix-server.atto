@@ -88,7 +88,7 @@ test('expired idempotency window does not accept stale events',()=>{
   const s=live({maxDedup:2}),t=transport('alice');s.receive(join(),t);
   for(let i=0;i<5;i++)s.receive(event(i+1,i),t);
   assert.equal(s.seen.size,2);
-  assert.equal(s.receive(event(1,0),t)[0].type,'resync_required');
+  assert.equal(s.receive(event(1,0),t)[0].type,'event_rejected');
   assert.equal(s.state.count,5);
 });
 test('malformed and unauthorized events do not advance committed revision',()=>{

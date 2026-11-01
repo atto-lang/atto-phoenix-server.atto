@@ -220,6 +220,17 @@ export class OresLiveView {
       if(i>=0) this.queue.splice(i,1);
       if(ahead) { this.ready=false; this._requestResync(); }
       else this._flush();
+    } else if(frame.type==='event_rejected') {
+      // Reject rather than retry a revision-dependent command at a newer base:
+      // retrying automatically can apply a command twice after dedup eviction.
+      assert(typeof frame.event_id==='string' && frame.code==='stale_revision' &&
+        Number.isSafeInteger(frame.rev) && frame.rev>=0,'invalid event rejection');
+      const i=this.queue.findIndex(e=>e.id===frame.event_id);
+      assert(i>=0,'unrecognized event rejection');
+      this.queue.splice(i,1);
+      this.ready=false;
+      this.onError(new Error('ORES_LIVEVIEW_CONFLICT: stale event rejected'));
+      this._requestResync();
     } else if(frame.type==='resync_required') {
       this.ready=false; this._requestResync();
     } else if(frame.type==='error') {

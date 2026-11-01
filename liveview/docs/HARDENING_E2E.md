@@ -39,3 +39,25 @@ Repeated `npm test` three times locally with Node v22.16.0; each run: **68 tests
 - Not production security or performance certification.
 
 Existing source security and CI authorization gates must remain unchanged. Do not merge a draft PR until independent runner admission and native execution gates are satisfied.
+
+## 2026-11-01 follow-up: replay identity and coalesced TCP frames
+
+The RFC 6455 reference parser now budgets **incomplete frame data** independently of
+bytes in a TCP read. Valid concatenated frames can exceed the input-buffer
+budget in aggregate; each frame must individually fit. A separate bounded
+frame-per-feed limit prevents control-frame floods from monopolizing the
+actor scheduler. Cross-backend raw wire vectors live in
+`fixtures/liveview-wire-v1.json`; every fixture is executed by Node tests.
+
+Replay identity now binds an event ID to its authenticated principal,
+command name, exact JSON payload serialization, and base revision. Reuse
+of an event ID for a different command fails closed. A stale, previously
+unseen event receives `{type: "event_rejected", code: "stale_revision",
+event_id, rev}`; browser clients discard only that rejected command,
+notify the application via `onError`, and request resynchronization before
+admitting the next queued command. This deliberately does **not** retry
+stale writes automatically or provide durable exactly-once effects.
+
+**Native evidence remains NOT_EXECUTED.** These fixtures are a portability
+contract for Java/GraalVM, LLVM, Wasm, .NET Native AOT and Forge, not
+runtime parity proof. The source security approval gate remains unchanged.

@@ -1,3 +1,5 @@
+// Real loopback HTTP + RFC6455 wire + authenticated session E2E.
+// The browser-automation suite is separate; this is Node transport evidence.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
@@ -6,10 +8,10 @@ import {launchReferenceDemo} from '../reference/demo-server.mjs';
 import {encodeClientFrame} from '../reference/ws-wire.mjs';
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const hello=(port,origin,cookie='',extra='')=>[
-  'GET /live HTTP/1.1','Host: 127.0.0.1:'+port,'Upgrade: websocket','Connection: Upgrade',
-  'Sec-WebSocket-Key: '+randomBytes(16).toString('base64'),'Sec-WebSocket-Version: 13',
-  'Sec-WebSocket-Protocol: ores-liveview-v1','Origin: '+origin,
-  ...(cookie?['Cookie: '+cookie]:[]),...(extra?[extra]:[]),'',''
+  'GET /live HTTP/1.1',`Host: 127.0.0.1:${port}`,'Upgrade: websocket','Connection: Upgrade',
+  `Sec-WebSocket-Key: ${randomBytes(16).toString('base64')}`,'Sec-WebSocket-Version: 13',
+  'Sec-WebSocket-Protocol: ores-liveview-v1',`Origin: ${origin}`,
+  ...(cookie?[`Cookie: ${cookie}`]:[]),...(extra?[extra]:[]),'',''
 ].join('\r\n');
 class WSClient {
   constructor(socket){this.socket=socket;this.chunks=Buffer.alloc(0);this.frames=[];this.status=null;
@@ -37,7 +39,7 @@ class WSClient {
     }
   }
   async wait(condition,what){for(let i=0;i<250;i++){if(condition())return;await sleep(4);}throw Error('E2E deadline exceeded: '+what);}
-  async take(n){await this.wait(()=>this.frames.length>=n,'frames '+n+', have '+this.frames.length);return this.frames.splice(0,n);}
+  async take(n){await this.wait(()=>this.frames.length>=n,`frames ${n}, have ${this.frames.length}`);return this.frames.splice(0,n);}
   send(frame){this.socket.write(encodeClientFrame(1,JSON.stringify(frame)));}
   close(){this.socket.destroy();}
 }
@@ -48,10 +50,9 @@ async function setup(){const server=await launchReferenceDemo();const page=await
   const boot=await (await fetch(server.origin+'/bootstrap.json',{headers:{Cookie:cookie}})).json();
   return {server,cookie,boot};
 }
-test('E2E: actual demo upgrades, events, broadcasts, reconnects and prevents replay',async()=>{
+test('E2E: actual demo upgrades, clicks, broadcasts, reconnects and prevents event replay',async()=>{
   const {server,cookie,boot}=await setup();const clients=[];
-  const connect=async()=>{const c=await WSClient.connect(server.port,hello(server.port,server.origin,cookie));clients.push(c);
-    assert.match(c.status,/101 Switching Protocols/);assert.match(c.status,/Sec-WebSocket-Protocol: ores-liveview-v1/);return c;};
+  const connect=async()=>{const c=await WSClient.connect(server.port,hello(server.port,server.origin,cookie));clients.push(c);assert.match(c.status,/101 Switching Protocols/);assert.match(c.status,/Sec-WebSocket-Protocol: ores-liveview-v1/);return c;};
   try{
     const a=await connect(),b=await connect();
     a.send(join(boot));b.send(join(boot));
@@ -64,13 +65,16 @@ test('E2E: actual demo upgrades, events, broadcasts, reconnects and prevents rep
     const subscribed=(await b.take(1))[0].json;
     assert.equal(subscribed.type,'patch');assert.equal(subscribed.rev,1);
     assert.equal(server.view.state.count,1);
+    // Duplicate event replay across an authenticated reconnect must never mutate.
     a.close();const c=await connect();c.send(join(boot,0));
     assert.deepEqual((await c.take(2)).map(x=>x.json.type),['patch','ready']);
     c.send(event(id,0));
-    assert.equal((await c.take(1))[0].json.type,'event_ack');assert.equal(server.view.state.count,1);
+    assert.equal((await c.take(1))[0].json.type,'event_ack');
+    assert.equal(server.view.state.count,1);
     b.send(event('87654321-bbbb-4111-8111-123456789abc',1));
     assert.deepEqual((await b.take(2)).map(x=>x.json.type),['patch','event_ack']);
-    assert.equal((await c.take(1))[0].json.rev,2);assert.equal(server.view.state.count,2);
+    const broadcast=(await c.take(1))[0].json;assert.equal(broadcast.rev,2);assert.equal(server.view.state.count,2);
+    // Fresh browser gets authoritative snapshot, not stale markup.
     const d=await connect();d.send(join(boot));assert.equal((await d.take(1))[0].json.rev,2);
   }finally{for(const c of clients)c.close();await server.close();}
 });
@@ -84,20 +88,20 @@ test('E2E: authentication, Origin and CSRF are enforced on actual sockets',async
     assert.match(c.status,/101 Switching Protocols/);
     c.send({...join(boot),csrf:'bad-csrf-token-12345'});
     const response=await c.take(1);assert.equal(response[0].opcode,8);
-    assert.equal(response[0].data.readUInt16BE(0),1008);assert.equal(server.view.revision,0);
+    assert.equal(response[0].data.readUInt16BE(0),1008);
+    assert.equal(server.view.revision,0);
   }finally{for(const c of clients)c.close();await server.close();}
 });
-test('E2E: stale revision triggers resync without mutation',async()=>{
+test('E2E: session rejects stale revision without mutating, then resync recovers',async()=>{
   const {server,cookie,boot}=await setup();let c;
   try{
     c=await WSClient.connect(server.port,hello(server.port,server.origin,cookie));
     c.send(join(boot));await c.take(2);
     c.send(event('aaaaaaaa-1111-4111-8111-111111111111',0));await c.take(2);
     c.send(event('bbbbbbbb-2222-4222-8222-222222222222',0));
-    assert.equal((await c.take(1))[0].json.type,'resync_required');
+    assert.equal((await c.take(1))[0].json.type,'event_rejected');
     assert.equal(server.view.state.count,1);
     c.send({v:1,type:'resync',view_id:'counter',revision:0});
-    const [snapshot,ready]=(await c.take(2)).map(x=>x.json);
-    assert.equal(snapshot.rev,1);assert.equal(ready.rev,1);
+    const [snapshot,ready]=(await c.take(2)).map(x=>x.json);assert.equal(snapshot.rev,1);assert.equal(ready.rev,1);
   }finally{c?.close();await server.close();}
 });

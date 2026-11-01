@@ -1,7 +1,7 @@
 // Host-only reference model of a serial, actor-owned Oreslang LiveView session.
 // It does NOT implement a WebSocket listener, authenticate cookies, or execute .ores.
 import {validateTree, validateEvent, MAX_FRAME, VERSION} from '../web/liveview.mjs';
-import {timingSafeEqual} from 'node:crypto';
+import {timingSafeEqual,createHash} from 'node:crypto';
 const EVENT_ID=/^[0-9a-fA-F-]{8,128}$/;
 const freeze = value => structuredClone(value);
 function assert(cond,msg) { if(!cond) throw new Error('ORES_LIVEVIEW_SERVER: '+msg); }
@@ -88,8 +88,16 @@ export class LiveViewSession {
     if(frame.type!=='event') throw new Error('ORES_LIVEVIEW_SERVER: unsupported event frame');
     assert(EVENT_ID.test(frame.event_id||''),'invalid event ID');
     validateEvent(frame.name,frame.payload);
-    if(this.seen.has(frame.event_id)) return [{v:VERSION,type:'event_ack',event_id:frame.event_id,rev:this.seen.get(frame.event_id)}];
-    if(!Number.isSafeInteger(frame.base_rev) || frame.base_rev!==this.revision) return [{v:VERSION,type:'resync_required'}];
+    assert(Number.isSafeInteger(frame.base_rev) && frame.base_rev>=0,'invalid base revision');
+    // A replay ID is valid only for the same authenticated command and base.
+    // A reused ID with different command bytes must never get a false ACK.
+    const fingerprint=createHash('sha256').update(JSON.stringify([transport.user,frame.name,frame.payload,frame.base_rev])).digest('hex');
+    if(this.seen.has(frame.event_id)) {
+      const seen=this.seen.get(frame.event_id);
+      assert(seen.fingerprint===fingerprint,'event ID reused for a different command');
+      return [{v:VERSION,type:'event_ack',event_id:frame.event_id,rev:seen.rev}];
+    }
+    if(frame.base_rev!==this.revision) return [{v:VERSION,type:'event_rejected',event_id:frame.event_id,code:'stale_revision',rev:this.revision}];
     const next=this.reduce(freeze(this.state),frame.name,freeze(frame.payload),transport);
     assert(next!==undefined,'reducer returned undefined');
     const tree=this.render(freeze(next));validateTree(tree,this.origin,[this.rootId]);
@@ -101,7 +109,7 @@ export class LiveViewSession {
     const snapshot={v:VERSION,type:'snapshot',rev,children:tree};
     this._packet(patch||snapshot); // check size before state commit
     this.state=freeze(next);this.tree=tree;this.revision=rev;
-    this.seen.set(frame.event_id,rev);
+    this.seen.set(frame.event_id,{rev,fingerprint});
     if(this.seen.size>this.maxDedup) this.seen.delete(this.seen.keys().next().value);
     if(patch) {this.history.push(patch);if(this.history.length>this.maxHistory) this.history.shift();}
     else this.history=[];

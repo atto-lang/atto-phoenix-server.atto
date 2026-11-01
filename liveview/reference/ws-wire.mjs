@@ -32,20 +32,32 @@ function closeCodeValid(code) {
     (code<1016 || code>=3000); // 1016–2999 reserved
 }
 export class ClientFrameParser {
-  constructor({maxMessage=WS_MAX_MESSAGE,maxBuffer=WS_MAX_MESSAGE+64,maxFragments=64}={}) {
+  constructor({maxMessage=WS_MAX_MESSAGE,maxBuffer=WS_MAX_MESSAGE+64,maxFragments=64,maxFramesPerFeed=256}={}) {
     if(!Number.isSafeInteger(maxMessage)||maxMessage<1||
        !Number.isSafeInteger(maxBuffer)||maxBuffer<1||
-       !Number.isSafeInteger(maxFragments)||maxFragments<1)fail('invalid parser budgets');
-    this.maxMessage=maxMessage;this.maxBuffer=maxBuffer;this.maxFragments=maxFragments;this.pending=Buffer.alloc(0);
+       !Number.isSafeInteger(maxFragments)||maxFragments<1||
+       !Number.isSafeInteger(maxFramesPerFeed)||maxFramesPerFeed<1)fail('invalid parser budgets');
+    this.maxMessage=maxMessage;this.maxBuffer=maxBuffer;this.maxFragments=maxFragments;this.maxFramesPerFeed=maxFramesPerFeed;this.pending=Buffer.alloc(0);
     this.fragments=[];this.fragmentBytes=0;this.fragmentOpcode=null;this.closed=false;
   }
   feed(bytes) {
     if(this.closed)fail('frame after close');
     if(!Buffer.isBuffer(bytes))bytes=Buffer.from(bytes);
-    if(this.pending.length+bytes.length>this.maxBuffer)fail('inbound buffer budget exceeded',1009);
-    this.pending=Buffer.concat([this.pending,bytes]);
+    // maxBuffer is the incomplete-frame budget, not the total TCP read size.
+    // Parse complete frames before admitting more bytes, so coalesced frames
+    // cannot spuriously trip memory limits. Limit per-feed work independently.
     const messages=[];
-    while(this.pending.length>=2) {
+    let offset=0, frameCount=0;
+    while(offset<bytes.length || (offset===0 && bytes.length===0)) {
+      if(offset<bytes.length) {
+        const available=this.maxBuffer-this.pending.length;
+        if(available<=0)fail('inbound buffer budget exceeded',1009);
+        const size=Math.min(available,bytes.length-offset);
+        this.pending=Buffer.concat([this.pending,bytes.subarray(offset,offset+size)]);
+        offset+=size;
+      }
+      let progress=false;
+      while(this.pending.length>=2) {
       const a=this.pending[0],b=this.pending[1], opcode=a&15,fin=!!(a&128),masked=!!(b&128),control=opcode>=8;
       if(a&0x70)fail('RSV bits set without extension');
       if(!masked)fail('unmasked client frame');
@@ -67,11 +79,14 @@ export class ClientFrameParser {
       if(length>this.maxMessage)fail('message too large',1009);
       if(control && length>125)fail('control frame too large');
       const start=2+extra+4;
+      if(start+length>this.maxBuffer)fail('frame exceeds input buffer budget',1009);
       if(this.pending.length<start+length)break;
       const mask=this.pending.subarray(start-4,start);
       const data=Buffer.from(this.pending.subarray(start,start+length));
       for(let i=0;i<length;i++)data[i]^=mask[i&3];
       this.pending=this.pending.subarray(start+length);
+      progress=true;
+      if(++frameCount>this.maxFramesPerFeed)fail('frame count per feed exceeded',1009);
       if(opcode===8) {
         if(length===1)fail('invalid close payload');
         if(length>=2) {const code=data.readUInt16BE(0);if(!closeCodeValid(code))fail('invalid close code');decode(data.subarray(2));}
@@ -94,6 +109,9 @@ export class ClientFrameParser {
         messages.push({type:'text',data:decode(full)});
         this.fragmentOpcode=null;this.fragmentBytes=0;this.fragments=[];
       }
+      }
+      if(offset===bytes.length)break;
+      if(!progress && this.pending.length>=this.maxBuffer)fail('inbound buffer budget exceeded',1009);
     }
     return messages;
   }

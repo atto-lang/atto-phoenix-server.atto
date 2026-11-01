@@ -11,7 +11,7 @@ BEAM, or HTMX protocol semantics into the core Oreslang runtime. It contains:
   model for eventual actor-native implementation.
 - `reference/htmx-bridge.mjs`: **separate** HTMX WebSocket OOB HTML encoder and
   safe form-message parser. HTMX does NOT understand native LiveView JSON frames.
-- `tests/liveview.test.mjs`: offline tests using Node built-ins and a minimal DOM
+- `tests/liveview.test.mjs`, `tests/replay-wire-e2e.test.mjs`, and `tests/wire-fixtures.test.mjs`: offline and real-socket tests using Node built-ins and a minimal DOM
   test double; no network connections, no Oreslang compiler or guest execution.
 - `docs/PROTOCOL.md` and `docs/NATIVE_INTEGRATION.md`: protocol contract, threat
   model, implementation sequence, and explicit release blockers.
@@ -108,3 +108,16 @@ Repeatability: three clean runs of `npm test` each completed **68/68**, and
 HOST_REFERENCE_ONLY; real browser Chromium tests, native Java/Graal execution
 and other backend parity were not executed in this batch. Review
 `docs/HARDENING_E2E.md` before interpreting the evidence.
+
+## Replay and wire hardening (2026-11-01)
+
+The host wire parser now handles multiple valid frames coalesced in one TCP read
+without treating aggregate bytes as an incomplete-frame budget. A separate
+`maxFramesPerFeed` cap prevents event-loop monopolization. Replay IDs are
+cryptographically bound to their original command and authenticated principal.
+Stale commands get explicit `event_rejected` frames; the browser drops the
+rejected command, reports a conflict, and resynchronizes before sending
+subsequent commands. The 14 JSON wire vectors in
+`fixtures/liveview-wire-v1.json` are designed for future exact-byte
+conformance on all five native backends. These tests are still
+`HOST_REFERENCE_ONLY`.
