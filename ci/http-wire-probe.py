@@ -80,7 +80,7 @@ def verify_oversized():
     except (http.client.RemoteDisconnected, ConnectionResetError, BrokenPipeError):
         print("PASS oversized completed body rejected by connection close")
         return
-    require(status >= 400, f"oversized completed 16385-byte body returned {status}")
+    require(400 <= status <= 599, f"oversized completed 16385-byte body returned {status}")
     print("PASS oversized completed body rejected by HTTP status")
 
 
@@ -105,19 +105,45 @@ def verify_bad_framing():
         print(f"PASS {label} rejected ({result})")
 
 
-def verify_concurrent():
+def verify_concurrent(rounds=4, requests_per_round=32, workers=8):
+    """Churn distinct sockets and actor dispatches across repeated waves.
+
+    A green result is not overload admission proof: at most 'workers'
+    requests are in flight. It checks exact per-request response isolation.
+    """
+    require(rounds > 0 and requests_per_round > 0 and workers > 0, "invalid churn parameters")
+
     def run_one(i):
         if i % 2:
             return exchange("GET", "/hello")
         body = ("request-" + str(i)).encode("ascii")
         return exchange("POST", "/echo", body, {"Content-Type": "text/plain"})
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        futures = [pool.submit(run_one, i) for i in range(32)]
-        for i, future in enumerate(futures):
-            status, body = future.result(timeout=12)
-            expected = b"hello from oreslang" if i % 2 else ("request-" + str(i)).encode("ascii")
-            require((status, body) == (200, expected), (i, status, body[:80]))
-    print("PASS 32 concurrent requests; all response bodies isolated")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        for round_num in range(rounds):
+            start = round_num * requests_per_round
+            futures = [pool.submit(run_one, i) for i in range(start, start + requests_per_round)]
+            for offset, future in enumerate(futures):
+                i = start + offset
+                status, body = future.result(timeout=12)
+                expected = b"hello from oreslang" if i % 2 else ("request-" + str(i)).encode("ascii")
+                require((status, body) == (200, expected), (i, status, body[:80]))
+    print(f"PASS {rounds * requests_per_round} requests across {rounds} waves; bodies isolated")
+
+
+def verify_media_types():
+    """Strict bootstrap MIME policy; not general RFC parameter parsing."""
+    good = ("text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8")
+    bad = ("text/plainx", "text/plain;evil=true", "text/plain; charset=iso-8859-1")
+    for media in good:
+        status, body = exchange("POST", "/echo", b"ping", {"Content-Type": media})
+        require((status, body) == (200, b"ping"), ("expected accepted MIME", media, status, body))
+    for media in bad:
+        status, _ = exchange("POST", "/echo", b"ping", {"Content-Type": media})
+        require(status == 415, ("expected MIME rejection", media, status))
+    status, _ = exchange("POST", "/echo", b"ping")
+    require(status == 415, ("missing MIME allowed", status))
+    print("PASS strict echo media-type admission and rejection")
 
 
 def verify_partial_header_deadline():
@@ -133,6 +159,7 @@ def main():
     verify_success()
     verify_oversized()
     verify_bad_framing()
+    verify_media_types()
     verify_concurrent()
     verify_partial_header_deadline()
     verify_success()
