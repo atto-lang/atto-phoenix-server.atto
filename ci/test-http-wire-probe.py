@@ -105,6 +105,67 @@ class OracleTests(unittest.TestCase):
                 probe.verify_concurrent()
 
 
+    def test_http_699_is_not_a_valid_oversize_rejection(self):
+        with mock.patch.object(probe, "exchange", return_value=(699, b"")):
+            with self.assertRaises(AssertionError):
+                probe.verify_oversized()
+
+    def test_http_500_is_a_valid_oversize_rejection(self):
+        with mock.patch.object(probe, "exchange", return_value=(500, b"")):
+            probe.verify_oversized()
+
+    def test_mime_policy_accepts_only_declared_forms(self):
+        accepted = {"text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8"}
+
+        def mock_echo(method, path, data=None, headers=None, timeout=7):
+            media = (headers or {}).get("Content-Type")
+            return (200, b"ping") if media in accepted else (415, b"rejected")
+
+        with mock.patch.object(probe, "exchange", side_effect=mock_echo) as call:
+            probe.verify_media_types()
+            self.assertEqual(call.call_count, 7)
+
+    def test_mime_policy_fails_if_unknown_parameter_is_accepted(self):
+        with mock.patch.object(probe, "exchange", return_value=(200, b"ping")):
+            with self.assertRaises(AssertionError):
+                probe.verify_media_types()
+
+    def test_mime_policy_fails_if_valid_charset_is_denied(self):
+        with mock.patch.object(probe, "exchange", return_value=(415, b"")):
+            with self.assertRaises(AssertionError):
+                probe.verify_media_types()
+
+    def test_four_waves_really_submit_128_distinct_requests(self):
+        def echo(method, path, data=None, headers=None, timeout=7):
+            return (200, b"hello from oreslang" if method == "GET" else data)
+
+        with mock.patch.object(probe, "exchange", side_effect=echo) as call:
+            probe.verify_concurrent()
+            self.assertEqual(call.call_count, 128)
+            bodies = [args.kwargs.get("data", args.args[2] if len(args.args) > 2 else None)
+                      for args in call.call_args_list if args.args[0] == "POST"]
+            self.assertEqual(len(bodies), 64)
+            self.assertEqual(len(set(bodies)), 64)
+
+    def test_second_wave_response_mixup_is_rejected(self):
+        def bad_echo(method, path, data=None, headers=None, timeout=7):
+            if method == "POST" and data == b"request-34":
+                return 200, b"request-2"
+            return 200, b"hello from oreslang" if method == "GET" else data
+
+        with mock.patch.object(probe, "exchange", side_effect=bad_echo):
+            with self.assertRaises(AssertionError):
+                probe.verify_concurrent()
+
+    def test_zero_churn_waves_are_rejected(self):
+        with self.assertRaises(AssertionError):
+            probe.verify_concurrent(rounds=0)
+
+    def test_negative_worker_count_is_rejected(self):
+        with self.assertRaises(AssertionError):
+            probe.verify_concurrent(workers=-1)
+
+
 if __name__ == "__main__":
     result = unittest.main(verbosity=1, exit=False).result
     if result.wasSuccessful():
