@@ -4,5 +4,30 @@ pub async routine main(): int {
 
   val String echoed = await http.post_text_async("http://127.0.0.1:8082/echo", "ping");
   stdio.println(echoed);
+  // Preserve the two canonical UTF-8 media parameter spellings accepted
+  // by the fail-closed /echo MIME gate; this checks transport header parsing.
+  val parameter_with_space = await network.connect_async("127.0.0.1", 8082);
+  await parameter_with_space.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\nConnection: close\r\n\r\nping"
+  );
+  val space_status = await parameter_with_space.read_line_async();
+  await parameter_with_space.close_async();
+  if space_status.is_none() ||
+    !space_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL /echo canonical UTF-8 charset with space");
+    return 1;
+  fi
+
+  val parameter_without_space = await network.connect_async("127.0.0.1", 8082);
+  await parameter_without_space.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain;charset=utf-8\r\nContent-Length: 4\r\nConnection: close\r\n\r\nping"
+  );
+  val no_space_status = await parameter_without_space.read_line_async();
+  await parameter_without_space.close_async();
+  if no_space_status.is_none() ||
+    !no_space_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL /echo canonical UTF-8 charset without space");
+    return 1;
+  fi
   return 0;
 }
