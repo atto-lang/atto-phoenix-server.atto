@@ -135,4 +135,8 @@ python3 -I -B "$root/ci/test-http-wire-probe.py"
 # Do not conflate native .ores client results with this independent Python TCP probe.
 # A timeout, wrong response body, or silent connection is a failed acceptance.
 timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-probe.py"
-echo "$passed/$total Phoenix-style HTTP contracts passed and wire probes passed"
+python3 -I -B "$root/ci/test-http-capacity-probe.py"
+# This strict native gate requires real 503 evidence; 80 TCP connects alone
+# cannot prove 64-slot HTTP admission or backpressure semantics.
+timeout --signal=TERM --kill-after=5s 45s python3 -I -B "$root/ci/http-capacity-probe.py"
+echo "$passed/$total Phoenix-style HTTP contracts passed, wire and saturation gates passed"
