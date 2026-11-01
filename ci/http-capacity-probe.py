@@ -124,10 +124,13 @@ def verify_saturation(attempts=80, minimum=65):
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as pool:
             future_list = [pool.submit(connect_partial, i) for i in range(attempts)]
+            # Socket dials each have a 3s timeout. Collect every completed
+            # future; timing out only on future.result() could orphan a socket
+            # which connects later and never enters the final cleanup list.
             for future in future_list:
                 try:
-                    held.append(future.result(timeout=5))
-                except (OSError, concurrent.futures.TimeoutError):
+                    held.append(future.result())
+                except OSError:
                     failed += 1
         require(len(held) >= minimum,
                 f"only {len(held)} held connections of {attempts}; saturation inconclusive")
