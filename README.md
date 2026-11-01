@@ -51,3 +51,14 @@ requests with isolated response bodies and stalled-header closure.
 host-only failure-oracle tests without a compiler or application
 listener. These offline tests are not a substitute for native
 execution; the reviewed private-runner gate remains closed.
+
+## Repeated connection churn and abort tests
+
+The byte-level wire contract now requests 128 independent
+GET/POST operations across four waves, checks 64 deliberate
+client disconnects, and verifies per-wave recovery and strict
+media types. Offline oracle coverage has expanded to 34
+authored cases; the new ones still require exact-head CI or
+independent execution to become verified pass results.
+These probes are not proof of 64-admission overload/503,
+resource-leak freedom or actor supervision recovery.
