@@ -47,6 +47,8 @@ jobs:
           echo "demo_tree=$(git rev-parse HEAD^{tree})"
       - name: Validate shell syntax
         run: bash -n scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh ci/test-runner-preflight.sh
+      - name: Test HTTP wire oracle adversarially (host only)
+        run: python3 -I -B ci/test-http-wire-probe.py
       - name: Test exact-head runner preflight adversarially (host only)
         run: bash ci/test-runner-preflight.sh
       - name: Test fixture policy adversarially (host only)
