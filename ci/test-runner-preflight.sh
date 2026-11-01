@@ -96,4 +96,4 @@ run_case 'compiler checkout must be clean'
 rm "$compiler/untracked.txt"
 git -C "$compiler" -c commit.gpgsign=false commit --allow-empty -qm 'different compiler'
 run_case 'compiler checkout does not match SOURCE_REF'
-printf 'PREFLIGHT_HOST_CASES_DECLARED scenarios=11\n'
+printf 'PREFLIGHT_HOST_TESTS_PASS scenarios=11\n'
