@@ -13,6 +13,8 @@ export const BACKEND_ADAPTERS=Object.freeze({
   net:'Kestrel actor transport'
 });
 export const WIRE_BLOB_SHA='931f58c1acd40e4c7e1b0b061f1711a0afe3c9b8';
+export const EVENT_FINGERPRINT_BLOB_SHA='e9fc97d87dee2670c56ff3abf9e86befbc0f2ff8';
+export const EVENT_FINGERPRINT_CASE_COUNT=8;
 export const APPLICATION_FRAMES=Object.freeze(['join','snapshot','ready','event','patch','event_ack','event_rejected','resync']);
 export const APPLICATION_ENTRYPOINT='mount -> event -> reducer -> typed_render -> patch/ack';
 const sha=/^[a-f0-9]{40}$/;
@@ -34,6 +36,9 @@ export function verifyToolchainContract(registry) {
   ensure(registry.schema==='ores-liveview-toolchain-v1','unknown schema');
   ensure(registry.wire_fixture_blob_sha===WIRE_BLOB_SHA,'wire fixture version drift');
   ensure(registry.wire_case_count===41,'41-case transport gate required');
+  ensure(registry.event_fingerprint_fixture_blob_sha===EVENT_FINGERPRINT_BLOB_SHA &&
+    registry.event_fingerprint_case_count===EVENT_FINGERPRINT_CASE_COUNT,
+    'application replay fingerprint fixture drift');
   ensure(registry.app_subprotocol==='ores-liveview-v1','subprotocol drift');
   ensure(Array.isArray(registry.all_toolchains_required)&&registry.all_toolchains_required.length===5&&
     registry.all_toolchains_required.every((k,i)=>k===TOOLCHAINS[i]),'five-toolchain inventory mismatch');
@@ -72,6 +77,9 @@ export function checkGuestEvidenceShape(receipt) {
     ensure(cap(receipt[name]),'missing stepful '+name);
   ensure(receipt.wire_fixture_blob_sha===WIRE_BLOB_SHA && receipt.observed_wire_cases===41,
     'incomplete or mismatched wire fixture');
+  ensure(receipt.event_fingerprint_fixture_blob_sha===EVENT_FINGERPRINT_BLOB_SHA &&
+    receipt.observed_fingerprint_cases===EVENT_FINGERPRINT_CASE_COUNT,
+    'unverified canonical event fingerprint vectors');
   ensure(receipt.guest_compiled===true && receipt.guest_executed===true &&
     receipt.actual_socket_io===true && receipt.actor_owned_state===true,
     'host codec is not guest LiveView');

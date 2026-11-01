@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonicalToolchain,verifyToolchainContract,loadToolchainContract,
-  checkGuestEvidenceShape,gitBlobSha,WIRE_BLOB_SHA,TOOLCHAINS} from '../reference/toolchain-parity.mjs';
+  checkGuestEvidenceShape,gitBlobSha,WIRE_BLOB_SHA,EVENT_FINGERPRINT_BLOB_SHA,TOOLCHAINS} from '../reference/toolchain-parity.mjs';
 const registry=loadToolchainContract();
 const clone=()=>structuredClone(registry);
 const bad=(v)=>assert.throws(v,/ORES_LIVEVIEW_PARITY/);
 const receipt=(backend='java')=>({backend,source_sha:'a'.repeat(40),source_tree_sha:'b'.repeat(40),
   compiler_sha:'c'.repeat(40),compiler_tree_sha:'d'.repeat(40),binary_sha:'e'.repeat(40),
   run_id:1,job_id:2,runner_id:3,executed_steps:4,wire_fixture_blob_sha:WIRE_BLOB_SHA,
-  observed_wire_cases:41,guest_compiled:true,guest_executed:true,actual_socket_io:true,
+  observed_wire_cases:41,event_fingerprint_fixture_blob_sha:EVENT_FINGERPRINT_BLOB_SHA,
+  observed_fingerprint_cases:8,guest_compiled:true,guest_executed:true,actual_socket_io:true,
   actor_owned_state:true,liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true});
 test('all five repository backends have an explicit shared application contract',()=>{
   const p=verifyToolchainContract(registry);assert.equal(p.structural_contract_valid,true);
@@ -32,7 +33,8 @@ test('reject native-guest certification based on a source-only host codec',()=>{
   for(const k of TOOLCHAINS){const c=clone();c.toolchains[k].guest_liveview_verified=true;bad(()=>verifyToolchainContract(c));}
 });
 test('wire registry and application revisions must be exactly pinned',()=>{
-  for(const [field,v] of [['wire_fixture_blob_sha','f'.repeat(40)],['wire_case_count',40],['app_subprotocol','ores.live.v1']]){
+  for(const [field,v] of [['wire_fixture_blob_sha','f'.repeat(40)],['wire_case_count',40],['event_fingerprint_fixture_blob_sha','f'.repeat(40)],
+    ['event_fingerprint_case_count',7],['app_subprotocol','ores.live.v1']]){
     const c=clone();c[field]=v;bad(()=>verifyToolchainContract(c));
   }
 });
@@ -61,7 +63,8 @@ test('receipt shape refuses host codec evidence, absent sockets or actor ownersh
 });
 test('wire or application protocol mismatch invalidates receipt',()=>{
   for(const [key,val] of [['observed_wire_cases',40],['wire_fixture_blob_sha','0'.repeat(40)],
-    ['liveview_app_protocol','ores.live.v1']]){const r=receipt();r[key]=val;bad(()=>checkGuestEvidenceShape(r));}
+    ['liveview_app_protocol','ores.live.v1'],
+    ['event_fingerprint_fixture_blob_sha','0'.repeat(40)],['observed_fingerprint_cases',7]]){const r=receipt();r[key]=val;bad(()=>checkGuestEvidenceShape(r));}
 });
 test('a fully populated synthetic receipt is NOT proof of execution or parity',()=>{
   const x=checkGuestEvidenceShape(receipt());assert.deepEqual(x,
@@ -78,4 +81,18 @@ test('host adapters are pinned per backend and cannot silently change transport 
       bad(()=>verifyToolchainContract(candidate));
     }
   }
+});
+
+test('all five backends require the canonical event fingerprint fixture in guest receipts',()=>{
+  for(const k of TOOLCHAINS) {
+    const r=receipt(k);assert.equal(checkGuestEvidenceShape(r).certified,false);
+    for(const [key,value] of [['observed_fingerprint_cases',0],
+      ['observed_fingerprint_cases',7],['event_fingerprint_fixture_blob_sha','0'.repeat(40)]]) {
+      const tampered={...r,[key]:value};bad(()=>checkGuestEvidenceShape(tampered));
+    }
+  }
+});
+test('toolchain inventory requires application fingerprint fixture pinned by exact Git blob SHA',()=>{
+  const c=clone();c.event_fingerprint_fixture_blob_sha=null;bad(()=>verifyToolchainContract(c));
+  const mismatch=clone();mismatch.event_fingerprint_case_count=9;bad(()=>verifyToolchainContract(mismatch));
 });

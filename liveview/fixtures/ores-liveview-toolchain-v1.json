@@ -2,6 +2,8 @@
   "schema": "ores-liveview-toolchain-v1",
   "wire_fixture_blob_sha": "931f58c1acd40e4c7e1b0b061f1711a0afe3c9b8",
   "wire_case_count": 41,
+  "event_fingerprint_fixture_blob_sha": "e9fc97d87dee2670c56ff3abf9e86befbc0f2ff8",
+  "event_fingerprint_case_count": 8,
   "app_subprotocol": "ores-liveview-v1",
   "all_toolchains_required": ["java", "llvm", "wasm", "forge", "net"],
   "shared_application_contract": {

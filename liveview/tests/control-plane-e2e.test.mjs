@@ -176,3 +176,25 @@ test('real TCP repeated disconnect/reconnect leaves no subscribers or socket slo
     }
   }finally{await env.stop();}
 });
+
+// Cross-runtime event dedup must not depend on JSON object member order.
+test('real TCP same replay ID with reordered nested JSON receives ACK but does not double-commit',async()=>{
+  const env=await makeEnv();try{
+    const a=await connect(env);a.send(join());await a.frames(2);
+    a.send({...event(31,0),payload:{z:1,nested:{omega:3,alpha:2}}});
+    assert.deepEqual(json(await a.frames(2)).map(x=>x.type),['patch','event_ack']);
+    a.send({...event(31,0),payload:{nested:{alpha:2,omega:3},z:1}});
+    assert.deepEqual(json(await a.frames(1)).map(x=>x.type),['event_ack']);
+    assert.equal(env.session.revision,1);assert.equal(env.session.state.count,1);
+    a.socket.destroy();
+  }finally{await env.stop();}
+});
+test('real TCP rejects nonportable JSON payload without committing actor revision',async()=>{
+  const env=await makeEnv();try{
+    const a=await connect(env);a.send(join());await a.frames(2);
+    a.send({...event(40,0),payload:{text:'\uD800'}});
+    assert.equal(closeCode(await a.frames()),1008);
+    assert.equal(env.session.revision,0);assert.equal(env.session.state.count,0);
+    a.socket.destroy();
+  }finally{await env.stop();}
+});

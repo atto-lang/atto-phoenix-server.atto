@@ -162,7 +162,23 @@ a common LiveView guest in this reference package. See
 also enforces incomplete-message assembly deadlines without requiring a peer
 to transmit another byte; see `tests/deadline-and-lifecycle.test.mjs`.
 
+## 2026-11-01 five-backend fail-closed hardening
 
-## 2026-11-01 host security and portability hardening
+See `docs/LIVEVIEW_PARITY_GATES_217.md`: exact WebSocket protocol offer
+validation, required application-frame vocabulary, and 217 local Node tests.
+This is **host-reference-only**; no Oreslang guest compiler or all-backend
+LiveView execution has been attested.
 
-See `docs/LIVEVIEW_PARITY_GATES_217.md` for the test/gate boundary. No guest parity is claimed.
+## 2026-11-01 portable event replay hardening (239 host tests)
+
+The LiveView v1 browser snapshots a validated JSON payload at dispatch time;
+mutation by a caller cannot rewrite a queued or retried event. Server command
+fingerprints use recursively sorted ASCII JSON object keys, retaining array
+order, so equivalent JSON objects sent by Java/LLVM/Wasm/Forge/.NET agree on
+replay identity once their guest adapters implement the contract. Non-JSON
+objects, getters, sparse arrays, unsafe integers and malformed Unicode are
+rejected before state mutation. A signed, attested **guest implementation**
+must execute all eight SHA-256 golden vectors in
+`fixtures/liveview-event-fingerprint-v1.json` as well as the 41 RFC6455 wire
+vectors. See `docs/EVENT_REPLAY_FINGERPRINT_V1.md`. The local Node tests are
+HOST_REFERENCE_ONLY; no five-backend guest parity is claimed.

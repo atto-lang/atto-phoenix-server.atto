@@ -4,6 +4,22 @@ import {validateTree, validateEvent, MAX_FRAME, VERSION} from '../web/liveview.m
 import {timingSafeEqual,createHash} from 'node:crypto';
 const EVENT_ID=/^[0-9a-fA-F-]{8,128}$/;
 const freeze = value => structuredClone(value);
+// Canonical payload encoding: ASCII field identifiers in UTF-16 ordinal order,
+// arrays retain order, scalar encoding follows ECMAScript JSON.stringify.
+// Publish golden hashes for independent compiler/runtime implementations.
+export function canonicalEventJson(value) {
+  if(Array.isArray(value))return '['+value.map(canonicalEventJson).join(',')+']';
+  if(value!==null && typeof value==='object')
+    return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonicalEventJson(value[k])).join(',')+'}';
+  return JSON.stringify(value);
+}
+export function eventCommandFingerprint(user,name,payload,baseRev) {
+  validateEvent(name,payload);
+  assert(typeof user==='string' && user.length>0, 'invalid authenticated user');
+  assert(Number.isSafeInteger(baseRev) && baseRev>=0, 'invalid base revision');
+  return createHash('sha256').update(
+    JSON.stringify([user,name,baseRev,canonicalEventJson(payload)]),'utf8').digest('hex');
+}
 function assert(cond,msg) { if(!cond) throw new Error('ORES_LIVEVIEW_SERVER: '+msg); }
 function indexNodes(nodes,map=new Map()) {
   for(const n of nodes) if(typeof n!=='string') {map.set(n.id,n);indexNodes(n.children||[],map);}
@@ -94,7 +110,7 @@ export class LiveViewSession {
     assert(Number.isSafeInteger(frame.base_rev) && frame.base_rev>=0,'invalid base revision');
     // A replay ID is valid only for the same authenticated command and base.
     // A reused ID with different command bytes must never get a false ACK.
-    const fingerprint=createHash('sha256').update(JSON.stringify([transport.user,frame.name,frame.payload,frame.base_rev])).digest('hex');
+    const fingerprint=eventCommandFingerprint(transport.user,frame.name,frame.payload,frame.base_rev);
     if(this.seen.has(frame.event_id)) {
       const seen=this.seen.get(frame.event_id);
       assert(seen.fingerprint===fingerprint,'event ID reused for a different command');

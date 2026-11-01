@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateUpgrade} from '../reference/ws-gateway.mjs';
-import {verifyToolchainContract,checkGuestEvidenceShape,loadToolchainContract,WIRE_BLOB_SHA} from '../reference/toolchain-parity.mjs';
+import {verifyToolchainContract,checkGuestEvidenceShape,loadToolchainContract,WIRE_BLOB_SHA,EVENT_FINGERPRINT_BLOB_SHA} from '../reference/toolchain-parity.mjs';
 function request(offer) {
   const headers={'host':'127.0.0.1:23456','origin':'http://127.0.0.1:23456',
     'connection':'Upgrade','upgrade':'websocket','sec-websocket-version':'13',
@@ -47,6 +47,7 @@ test('even complete-looking receipts remain unauthenticated structural assertion
   const receipt={backend:'java',source_sha:sha,source_tree_sha:sha,compiler_sha:sha,
     compiler_tree_sha:sha,binary_sha:sha,run_id:1,job_id:2,runner_id:3,executed_steps:4,
     wire_fixture_blob_sha:WIRE_BLOB_SHA,observed_wire_cases:41,
+    event_fingerprint_fixture_blob_sha:EVENT_FINGERPRINT_BLOB_SHA,observed_fingerprint_cases:8,
     guest_compiled:true,guest_executed:true,actual_socket_io:true,actor_owned_state:true,
     liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true};
   assert.deepEqual([checkGuestEvidenceShape(receipt).authenticated,
