@@ -111,9 +111,9 @@ paths are exactly `src/[a-z0-9_]+.ores` and
 
 Earlier PR #6 reported `FIXTURE_NEGATIVE_TESTS_PASS scenarios=15`
 and a synthetic inventory validation. Those prior host-only results
-do not attest this newer branch. This branch declares five HTTP
-contracts (success, negative, disconnect, bounds, framing) and six
-indexed Oreslang sources (one server and five clients). The current
+do not attest this newer branch. This branch declares seven HTTP
+contracts (success, negative, disconnect, bounds, framing, headers, routes)
+and eight indexed Oreslang sources (one server and seven clients). The current
 GitHub source-organizational workflow has not executed fixture steps.
 Neither those previous host-only checks nor this branch's static
 registry audit constitute native compiler, listener, or client evidence.
@@ -143,3 +143,23 @@ All new `.ores` checks are **NOT_EXECUTED** until the independently
 reviewed exact-head compiler and listener contracts run successfully.
 The contract runner's per-fixture 30-second timeout is not evidence
 of the configured five-second application request deadline.
+
+## Additional regression gates (source-only pending execution)
+
+- `tests/http_headers.ores`: malformed HTTP/1.1 Host/header
+  admission (missing Host, duplicate Host, nondecimal or negative body
+  length) must never produce a successful echo.
+- `tests/http_routes.ores`: exact route and method gates for
+  `/HELLO`, `/hello/`, `OPTIONS /hello`, `PUT /echo` and
+  `DELETE /echo`. A valid request must work afterward.
+- `ci/test-runner-preflight.sh`: eleven host-only cases, including
+  the valid exact-head path reaching a non-executing fixture sentinel,
+  malformed or stale candidate hashes, dirty demo/compiler worktrees,
+  invalid SOURCE_REF and a committed symlink SOURCE_REF. No Maven
+  or compiler guest may run during these tests.
+- `ci/test-fixtures.sh`: now declares 24 host-only adversarial
+  fixtures against bad source/oracle registries and unsafe Git entries.
+
+These tests are additions to the **reviewed source candidate**, not
+native test passes. GitHub Actions runner assignment, exact compiler
+execution, overload, shutdown and live transport remain separate gates.
