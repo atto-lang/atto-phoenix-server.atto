@@ -146,6 +146,33 @@ def verify_media_types():
     print("PASS strict echo media-type admission and rejection")
 
 
+def verify_disconnect_churn(waves=4, sockets_per_wave=16):
+    """Stress incomplete-header and mid-body client teardown, then recover.
+
+    This checks post-abort responsiveness, NOT that actor resources or TCP
+    descriptors are leak-free. Explicitly close all 64 client sockets.
+    """
+    require(0 < waves <= 8 and 0 < sockets_per_wave <= 32, "invalid abort-churn bounds")
+    partial_headers = (
+        b"GET /hello HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+    )
+    partial_body = (
+        b"POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        b"Content-Type: text/plain\r\nContent-Length: 32\r\n"
+        b"Connection: close\r\n\r\nping"
+    )
+    for wave in range(waves):
+        for i in range(sockets_per_wave):
+            request = partial_headers if (wave * sockets_per_wave + i) % 2 else partial_body
+            with socket.create_connection((HOST, PORT), timeout=CONNECT_TIMEOUT) as sock:
+                sock.settimeout(CONNECT_TIMEOUT)
+                sock.sendall(request)
+        status, body = exchange("GET", "/hello")
+        require((status, body) == (200, b"hello from oreslang"),
+                ("disconnect recovery failed", wave, status, body[:80]))
+    print(f"PASS {waves * sockets_per_wave} forced client disconnects; per-wave recovery")
+
+
 def verify_partial_header_deadline():
     start = time.monotonic()
     request = b"GET /hello HTTP/1.1\r\nHost: 127.0.0.1\r\n"
@@ -161,6 +188,7 @@ def main():
     verify_bad_framing()
     verify_media_types()
     verify_concurrent()
+    verify_disconnect_churn()
     verify_partial_header_deadline()
     verify_success()
     print("HTTP_WIRE_PROBE_PASS listener=127.0.0.1:8082")
