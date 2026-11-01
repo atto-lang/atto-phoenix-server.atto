@@ -318,3 +318,36 @@ and `-O`. Git blob SHA for the exact executed test file is
 `7052384ea17e7fad86649c52d581afaacdfda171`. The synthetic
 server is merely a controlled test fixture and does not establish
 that the production Oreslang server returns 503 under pressure.
+
+## Slow-client trickle deadline and recovery checks (source candidate)
+
+`ci/http-slow-client-probe.py` uses real loopback TCP to leave
+HTTP/1.1 request headers or a 16,384-byte declared request body
+incomplete, while continuously trickling one byte every ~650 ms.
+For each case it requires an explicit HTTP 4xx/5xx status or connection
+closure **within seven seconds from initial connection attempt**,
+followed by a successful byte-identical GET `/hello`.
+
+A silent connection, HTTP success or redirect, malformed/partial
+status line, or elapsed-time bound violation fails the gate. The
+seven-second upper bound is intentionally conservative relative to the
+configured five-second request deadline: **a pass is not evidence of
+precise five-second accounting**, nor actor/FD leak freedom.
+
+`ci/test-http-slow-client-probe.py` includes 20 offline host-only
+checks for 100/200/302/600 false successes, 408/503/599 valid
+rejections, LF-only/truncated/oversized status lines, synthetic live
+TCP rejection/closure/silence/trickling, invalid parameters and
+recovery body corruption. Both files were compared byte-for-byte with
+their GitHub Git blobs and **20/20 tests passed locally under normal
+and optimized Python**:
+
+- Live probe: `e861fea21bfb1481530ed0690df9a9c2a636758b`
+- Offline oracle suite: `9805f396b75b9117b19cb5fe5664337124eca1c7`
+
+The automatic PR job runs only the offline oracle suite. The manually
+authorized exact-SHA native runner runs the oracle and then executes
+the live probe with an outer 30-second timeout. Neither actual Oreslang
+listener execution nor exact-head GitHub Actions step execution is
+implied by these local synthetic results. All runtime evidence remains
+**NOT_EXECUTED** pending the protected private-runner gate.
