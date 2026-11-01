@@ -86,6 +86,32 @@ pub async routine main(): int {
     return 1;
   fi
 
+  // A semicolon alone does not validate an HTTP media-type parameter.
+  val bad_parameter = await network.connect_async("127.0.0.1", 8082);
+  await bad_parameter.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain;evil=true\r\nContent-Length: 4\r\nConnection: close\r\n\r\nping"
+  );
+  val bad_parameter_status = await bad_parameter.read_line_async();
+  await bad_parameter.close_async();
+  if bad_parameter_status.is_none() ||
+    !bad_parameter_status.unwrap().starts_with("HTTP/1.1 415"); then
+    stdio.println("FAIL /echo undeclared media parameter");
+    return 1;
+  fi
+
+  // Never reinterpret a non-UTF-8 body as UTF-8 text.
+  val wrong_charset = await network.connect_async("127.0.0.1", 8082);
+  await wrong_charset.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain; charset=iso-8859-1\r\nContent-Length: 4\r\nConnection: close\r\n\r\nping"
+  );
+  val wrong_charset_status = await wrong_charset.read_line_async();
+  await wrong_charset.close_async();
+  if wrong_charset_status.is_none() ||
+    !wrong_charset_status.unwrap().starts_with("HTTP/1.1 415"); then
+    stdio.println("FAIL /echo unexpected media charset");
+    return 1;
+  fi
+
   stdio.println("PASS Phoenix-style HTTP negative contracts");
   return 0;
 }
