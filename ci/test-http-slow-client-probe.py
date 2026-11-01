@@ -18,7 +18,7 @@ class FakeServer(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-def local_run(reply, *, delay=0.0, max_wait=0.2, interval=0.04):
+def local_run(reply, *, delay=0.0, max_wait=0.2, interval=0.04, prefix=None):
     # Local TCP server consumes prefix; may reject, close, or keep silent.
     class Handler(socketserver.BaseRequestHandler):
         def handle(self):
@@ -34,7 +34,8 @@ def local_run(reply, *, delay=0.0, max_wait=0.2, interval=0.04):
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()
         try:
-            return probe.watch_stall(probe.HEADER_PREFIX, host="127.0.0.1",
+            return probe.watch_stall(probe.HEADER_PREFIX if prefix is None else prefix,
+                                     host="127.0.0.1",
                                      port=server.server_address[1],
                                      max_wait=max_wait, interval=interval)
         finally:
@@ -140,6 +141,30 @@ class SlowClientOracleTests(unittest.TestCase):
         with mock.patch.object(probe.http.client, "HTTPConnection", return_value=fake):
             probe.check_recovery()
         fake.close.assert_called_once()
+
+    def test_real_tcp_partial_body_408_with_trickling(self):
+        result, elapsed, trickles = local_run(
+            b"HTTP/1.1 408 Request Timeout\r\n\r\n",
+            delay=0.11, max_wait=0.25, prefix=probe.BODY_PREFIX)
+        self.assertEqual(result, 408)
+        self.assertGreaterEqual(trickles, 1)
+        self.assertLess(elapsed, 0.25)
+
+    def test_main_checks_both_stalls_and_recovers_each_time(self):
+        with mock.patch.object(probe, "watch_stall", side_effect=[
+            (408, 4.0, 3), ("closed", 5.0, 4)]) as run:
+            with mock.patch.object(probe, "check_recovery") as recovered:
+                probe.main()
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[0].args[0], probe.HEADER_PREFIX)
+        self.assertEqual(run.call_args_list[1].args[0], probe.BODY_PREFIX)
+        self.assertEqual(recovered.call_count, 3)
+
+    def test_main_rejects_overseven_second_stall(self):
+        with mock.patch.object(probe, "watch_stall", return_value=(408, 7.5, 10)):
+            with mock.patch.object(probe, "check_recovery"):
+                with self.assertRaises(AssertionError):
+                    probe.main()
 
 
 if __name__ == "__main__":
