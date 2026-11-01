@@ -109,12 +109,14 @@ paths are exactly `src/[a-z0-9_]+.ores` and
 `tests/[a-z0-9_]+.ores`; oracles are exactly
 `tests/[a-z0-9_]+.out`.
 
-The independently executed fixture regression reports
-`FIXTURE_NEGATIVE_TESTS_PASS scenarios=15`. A synthetic local Git
-checkout containing the registered three contracts and four sources
-reports `FIXTURE_STRUCTURAL_PASS contracts=3 sources=4`.
-These are **host-only** checks, not execution of the real `.ores`
-clients, the HTTP server, or the pinned Java compiler.
+Earlier PR #6 reported `FIXTURE_NEGATIVE_TESTS_PASS scenarios=15`
+and a synthetic inventory validation. Those prior host-only results
+do not attest this newer branch. This branch declares five HTTP
+contracts (success, negative, disconnect, bounds, framing) and six
+indexed Oreslang sources (one server and five clients). The current
+GitHub source-organizational workflow has not executed fixture steps.
+Neither those previous host-only checks nor this branch's static
+registry audit constitute native compiler, listener, or client evidence.
 
 ## HTTP request-framing and media-parameter admission (pending native execution)
 
