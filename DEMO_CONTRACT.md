@@ -115,3 +115,29 @@ checkout containing the registered three contracts and four sources
 reports `FIXTURE_STRUCTURAL_PASS contracts=3 sources=4`.
 These are **host-only** checks, not execution of the real `.ores`
 clients, the HTTP server, or the pinned Java compiler.
+
+## HTTP request-framing and media-parameter admission (pending native execution)
+
+The source candidate now allows exactly `text/plain`,
+`text/plain; charset=utf-8`, or `text/plain;charset=utf-8` for
+`POST /echo`. Unsupported, malformed, or ambiguous media parameters
+fail closed with 415. This temporary strict profile is not a general
+RFC-compliant media-type parameter parser; in particular, other valid
+case/whitespace permutations may be rejected.
+
+`tests/http_negative.ores` also probes unknown parameters and an
+unexpected `iso-8859-1` charset. `tests/http_framing.ores` probes
+duplicate conflicting `Content-Length` headers and conflicting
+`Transfer-Encoding: chunked` plus `Content-Length`, then checks
+independent `/hello` and `/echo` requests remain responsive.
+The only permitted outcomes for ambiguous framing are rejection or
+connection closure, **never successful echo dispatch**. These
+regressions exercise the upstream HTTP parser. They do not make it safe
+if the native runtime actually accepts ambiguous framing, and they do
+not establish formal request-smuggling resistance on reverse-proxy
+paths or across backends.
+
+All new `.ores` checks are **NOT_EXECUTED** until the independently
+reviewed exact-head compiler and listener contracts run successfully.
+The contract runner's per-fixture 30-second timeout is not evidence
+of the configured five-second application request deadline.
