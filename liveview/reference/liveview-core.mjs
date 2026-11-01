@@ -47,6 +47,45 @@ export function diffView(previous,next,rootId='root') {
   walk(rootId,previous,next);
   return ops;
 }
+// Atomic browser patch admission is stricter than tree validity. Moving a
+// keyed ID between different parent subtrees, or mutating a structural target
+// and its attributes together, must use a snapshot instead of a broken patch.
+function patchAdmissibleForClient(previous,ops,rootId) {
+  const parents=new Map([[rootId,null]]);
+  function index(nodes,parent) {
+    for(const node of nodes) if(typeof node!=='string') {
+      parents.set(node.id,parent);
+      index(node.children||[],node.id);
+    }
+  }
+  index(previous,rootId);
+  const within=(id,ancestor)=>{
+    for(let cursor=id;cursor!==null && cursor!==undefined;cursor=parents.get(cursor))
+      if(cursor===ancestor)return true;
+    return false;
+  };
+  const replacementIds=new Set();
+  for(const op of ops) {
+    if(!parents.has(op.id))return false;
+    if(op.op==='replace_children') {
+      const visit=nodes=>{
+        for(const node of nodes) if(typeof node!=='string') {
+          if(replacementIds.has(node.id) || (parents.has(node.id) && !within(node.id,op.id)))return false;
+          replacementIds.add(node.id);
+          if(!visit(node.children||[]))return false;
+        }
+        return true;
+      };
+      if(!visit(op.children))return false;
+    }
+  }
+  for(let i=0;i<ops.length;i++) {
+    if(ops[i].op!=='set_text' && ops[i].op!=='replace_children')continue;
+    for(let j=0;j<ops.length;j++)if(i!==j && within(ops[j].id,ops[i].id))return false;
+  }
+  return true;
+}
+
 export class LiveViewSession {
   constructor({viewId,sessionId,csrfToken,rootId='root',origin,initialState,render,reduce,authorize,maxHistory=32,maxDedup=256,maxSubscribers=64}) {
     assert(typeof viewId==='string' && typeof sessionId==='string' && typeof csrfToken==='string' && csrfToken.length>=16,'identity/CSRF required');
@@ -126,7 +165,8 @@ export class LiveViewSession {
       'revision exhausted');
     const rev=this.revision+1;
     let patch={v:VERSION,type:'patch',prev:this.revision,rev,ops};
-    if(new TextEncoder().encode(JSON.stringify(patch)).length>MAX_FRAME || ops.length>128) patch=null;
+    if(new TextEncoder().encode(JSON.stringify(patch)).length>MAX_FRAME || ops.length>128 ||
+      !patchAdmissibleForClient(this.tree,ops,this.rootId)) patch=null;
     const snapshot={v:VERSION,type:'snapshot',rev,children:tree};
     this._packet(patch||snapshot); // check size before state commit
     this.state=freeze(next);this.tree=tree;this.revision=rev;
