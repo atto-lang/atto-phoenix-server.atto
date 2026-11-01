@@ -132,7 +132,9 @@ kill -0 "$server_pid"
 grep -Fq 'Oreslang Phoenix-style demo listening on loopback:8082' "$server_log"
 [[ "$total" -gt 0 && "$passed" -eq "$total" ]]
 python3 -I -B "$root/ci/test-http-wire-probe.py"
+python3 -I -B "$root/ci/test-http-wire-extra-probe.py"
 # Do not conflate native .ores client results with this independent Python TCP probe.
 # A timeout, wrong response body, or silent connection is a failed acceptance.
 timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-probe.py"
-echo "$passed/$total Phoenix-style HTTP contracts passed and wire probes passed"
+timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-extra-probe.py"
+echo "$passed/$total Phoenix-style HTTP contracts passed and both wire probe suites passed"
