@@ -104,7 +104,18 @@ async function connect(env){
     if(index>=0){const status=buf.subarray(0,index).toString();buf=buf.subarray(index+4);assert.match(status,/101 Switching Protocols/);return {socket,
       send:(data)=>socket.write(data),
       async closeFrame(){for(let j=0;j<150;j++){
-        if(buf.length>=4 && (buf[0]&15)===8){const width=(buf[1]&127)<126?2:4;const len=width===2?(buf[1]&127):buf.readUInt16BE(2);if(buf.length>=width+len)return buf.readUInt16BE(width);}
+        while(buf.length>=2){
+          const indicator=buf[1]&127;
+          const width=indicator<126?2:indicator===126?4:10;
+          if(buf.length<width)break;
+          const length=indicator<126?indicator:indicator===126?buf.readUInt16BE(2):Number(buf.readBigUInt64BE(2));
+          if(buf.length<width+length)break;
+          const opcode=buf[0]&15;
+          if(opcode===8){assert.ok(length>=2);return buf.readUInt16BE(width);}
+          // A peer may send a Pong before the close. Ignore completed
+          // non-close control/data frames but never consume partial frames.
+          buf=buf.subarray(width+length);
+        }
         await delay(3);
       }throw Error('no close frame');}};}
     await delay(3);
@@ -137,5 +148,35 @@ test('per-session subscriber cap applies across gateways and leaves healthy peer
     const b=await connect(env);assert.equal(await b.closeFrame(),1011);
     assert.equal(env.live.subscribers.size,1);
     a.socket.destroy();b.socket.destroy();
+  }finally{await env.stop();}
+});
+test('real socket refuses a silent partial header without needing another TCP read',async()=>{
+  const env=await networkEnv({maxMessageAgeMs:35,idleTimeoutMs:2000});
+  try {const c=await connect(env);c.send(encodeClientFrame(1,'hello').subarray(0,1));
+    assert.equal(await c.closeFrame(),1008);c.socket.destroy();
+    for(let i=0;i<100&&env.gateway.connections;i++)await delay(2);
+    assert.equal(env.gateway.connections,0);assert.equal(env.live.subscribers.size,0);
+  }finally{await env.stop();}
+});
+test('message completion disarms the independent deadline timer',async()=>{
+  const env=await networkEnv({maxMessageAgeMs:35,idleTimeoutMs:2000});
+  try {const c=await connect(env);c.send(encodeClientFrame(1,JSON.stringify(join())));
+    await delay(100);assert.equal(env.gateway.connections,1);
+    assert.equal(env.live.subscribers.size,1);c.socket.destroy();
+  }finally{await env.stop();}
+});
+test('control pings cannot prolong a fragmented WebSocket message deadline',async()=>{
+  const env=await networkEnv({maxMessageAgeMs:55,idleTimeoutMs:2000});
+  try {const c=await connect(env);c.send(encodeClientFrame(1,'partial',{fin:false}));
+    await delay(10);c.send(encodeClientFrame(9,'heartbeat'));
+    assert.equal(await c.closeFrame(),1008);c.socket.destroy();
+  }finally{await env.stop();}
+});
+test('gateway close cancels active assembly timers and detaches pending actor',async()=>{
+  const env=await networkEnv({maxMessageAgeMs:1000,idleTimeoutMs:2000});
+  try {const c=await connect(env);c.send(encodeClientFrame(1,'partial',{fin:false}));
+    await delay(5);env.gateway.close();
+    assert.equal(env.gateway.connections,0);assert.equal(env.live.subscribers.size,0);
+    c.socket.destroy();
   }finally{await env.stop();}
 });

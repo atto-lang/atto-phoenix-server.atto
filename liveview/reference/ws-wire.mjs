@@ -113,7 +113,13 @@ export class ClientFrameParser {
       if(opcode===8) {
         if(length===1)fail('invalid close payload');
         if(length>=2) {const code=data.readUInt16BE(0);if(!closeCodeValid(code))fail('invalid close code');decode(data.subarray(2));}
-        this.closed=true;messages.push({type:'close',data});break;
+        // A peer close is terminal. Never emit application messages that
+        // were bundled after CLOSE in this TCP read, or silently retain them.
+        // This matters when the transport batches several masked frames.
+        this.closed=true;
+        if(this.pending.length!==0 || offset<bytes.length)
+          fail('frame bytes after close');
+        messages.push({type:'close',data});break;
       }
       if(opcode===9||opcode===10) {
         messages.push({type:opcode===9?'ping':'pong',data});

@@ -150,3 +150,19 @@ actor unsubscribe on gateway shutdown, and a bounded per-view subscriber cap.
 Run `npm test` for the 183-test reference suite and see
 `docs/HARDENING_183.md` for limits, adversarial cases and the native CI gate.
 These tests do not certify a native Oreslang WebSocket runtime.
+
+## Cross-toolchain protocol contract (source-only)
+
+`fixtures/ores-liveview-toolchain-v1.json`,
+`reference/toolchain-parity.mjs`, and `tests/five-toolchain-contract.test.mjs`
+add fail-closed five-backend topology, ownership and provenance checks.
+Java, LLVM, Wasm, Forge/Cranelift and .NET have **not** compiled or executed
+a common LiveView guest in this reference package. See
+`docs/FIVE_TOOLCHAIN_PORTABILITY.md` for native promotion gates. The gateway
+also enforces incomplete-message assembly deadlines without requiring a peer
+to transmit another byte; see `tests/deadline-and-lifecycle.test.mjs`.
+
+
+## 2026-11-01 host security and portability hardening
+
+See `docs/LIVEVIEW_PARITY_GATES_217.md` for the test/gate boundary. No guest parity is claimed.
