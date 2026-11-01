@@ -62,3 +62,13 @@ authored cases; the new ones still require exact-head CI or
 independent execution to become verified pass results.
 These probes are not proof of 64-admission overload/503,
 resource-leak freedom or actor supervision recovery.
+
+## Strict overload evidence (not yet executed on Oreslang)
+
+`ci/http-capacity-probe.py` deliberately holds 80 incomplete request
+bodies against the 64-admission listener. It requires at least 65
+established sockets, **an explicit HTTP 503**, and post-pressure
+healthy responses; silent or timed-out sockets cannot satisfy the
+503 gate. `ci/test-http-capacity-probe.py` tests the oracle offline.
+Local verified host checks: **31/31** under normal and optimized Python.
+The actual 503/overload runtime result remains **NOT_EXECUTED**.
