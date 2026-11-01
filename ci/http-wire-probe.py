@@ -53,7 +53,10 @@ def reject_raw(payload, host=HOST, port=PORT, timeout=CONNECT_TIMEOUT):
             received.extend(part)
             if len(received) > 1024:
                 raise AssertionError("unbounded HTTP status line")
-        line = bytes(received).split(b"\n", 1)[0].rstrip(b"\r")
+        status_line, _rest = bytes(received).split(b"\n", 1)
+        if not status_line.endswith(b"\r"):
+            raise AssertionError("HTTP response status line must end in CRLF")
+        line = status_line[:-1]
         match = re.fullmatch(rb"HTTP/1\.[01] ([0-9]{3})(?: [^\r\n]*)?", line)
         if not match:
             raise AssertionError("invalid HTTP status line: " + repr(line))
