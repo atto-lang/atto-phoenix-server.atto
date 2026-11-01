@@ -264,3 +264,40 @@ deadline semantics, WebSockets or native multi-backend parity.
 These require instrumented runtime/protocol hooks and actual
 reviewed-head native execution; never infer them from churn
 or the host-only oracle.
+
+## Strict 503 admission saturation gate (pending native execution)
+
+`ci/http-capacity-probe.py` is an independent loopback TCP acceptance
+probe. It sends **80 concurrent incomplete POST bodies** (declaring
+16,384 bytes and sending one byte), holds at least **65 established**
+connections, observes bounded responses over seven seconds, and
+**requires at least one explicit HTTP 503**. An HTTP 408, a close or
+reset without a status, a socket remaining silent, or an accepted TCP
+handshake is *not* proof of 503/backpressure. It rejects any 1xx/2xx/
+3xx response to an incomplete request and checks **two consecutive**
+healthy `GET /hello` requests after releasing the held sockets.
+
+The check is intentionally strict and may FAIL on a runtime that
+queues and times out requests rather than issuing a 503. Such failure
+identifies missing or unverified overload behavior, but does **not**
+alone prove a particular runtime defect: TCP connection acceptance
+does not prove the HTTP runtime has admitted an application request.
+The exact 64-request capacity, resource accounting, supervisor
+replacement, graceful drain, five-second deadline, and post-test
+memory/descriptor stability remain separate promotion gates.
+
+`ci/test-http-capacity-probe.py` has **26 offline host-only tests**
+for malformed HTTP status lines, false 200/302/100/600 success,
+408-only and closure-only outcomes, insufficient established sockets,
+silent pending connections, real local socket-pair I/O, and two-step
+recovery. The suite passed locally under normal and optimized Python
+with the following **byte-identical GitHub blob IDs**:
+
+- `ci/http-capacity-probe.py`: `7b861fc2c848d70f2e93d197960f062f5b1a72e4`
+- `ci/test-http-capacity-probe.py`: `ba23de83ff5865fe54419606fdc55d81ebdd5f13`
+
+These tests use **no Oreslang compiler**. The hosted PR workflow
+runs the 26 offline cases, and the manually reviewed exact-SHA
+native runner runs them again before the bounded 45-second live
+saturation probe. All native saturation results are currently
+**NOT_EXECUTED**; no 503 success is claimed.
