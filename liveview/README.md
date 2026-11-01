@@ -85,3 +85,26 @@ E2E suite passes; do not report it as passing unless it actually executes.
 All reference tests remain **HOST_REFERENCE_ONLY**, not native Oreslang or five-
 backend evidence. Keep the WebSocket runtime and trusted compiler approval gate
 blocked until separately verified.
+
+## Additional adversarial and lifecycle regressions
+
+`tests/hardening.test.mjs` adds 14 deterministic regressions to the existing
+54-test Node reference suite. Scenarios cover seeded TCP chunk splitting,
+fragmented Unicode/ping delivery, invalid UTF-8, malformed/noncanonical RFC
+6455 framing, oversized fragmented frames, zero-byte fragmentation exhaustion,
+replay-window expiration, stale event IDs, unauthorized events, detached and
+crashing subscribers, and real loopback sockets with failing attach, detach and
+circular outbound session messages.
+
+The reference gateway now handles actor/subscriber callback exceptions without
+propagating them from the HTTP `upgrade` or socket `close` listener. A failed
+attach or nonserializable outbound subscriber frame closes with RFC 6455 1011,
+while a detach failure is counted and isolated. The `gateway.faults` getter
+exposes read-only copies of `{attach, detach, output}` counters for diagnostics;
+no user payload, token or credential enters those metrics.
+
+Repeatability: three clean runs of `npm test` each completed **68/68**, and
+`node --check` passed for the changed gateway and the new tests. This is
+HOST_REFERENCE_ONLY; real browser Chromium tests, native Java/Graal execution
+and other backend parity were not executed in this batch. Review
+`docs/HARDENING_E2E.md` before interpreting the evidence.
