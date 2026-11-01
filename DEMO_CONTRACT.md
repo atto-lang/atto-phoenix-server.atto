@@ -286,18 +286,25 @@ The exact 64-request capacity, resource accounting, supervisor
 replacement, graceful drain, five-second deadline, and post-test
 memory/descriptor stability remain separate promotion gates.
 
-`ci/test-http-capacity-probe.py` has **26 offline host-only tests**
+`ci/test-http-capacity-probe.py` has **31 offline host-only tests**
 for malformed HTTP status lines, false 200/302/100/600 success,
 408-only and closure-only outcomes, insufficient established sockets,
 silent pending connections, real local socket-pair I/O, and two-step
 recovery. The suite passed locally under normal and optimized Python
 with the following **byte-identical GitHub blob IDs**:
 
-- `ci/http-capacity-probe.py`: `7b861fc2c848d70f2e93d197960f062f5b1a72e4`
-- `ci/test-http-capacity-probe.py`: `ba23de83ff5865fe54419606fdc55d81ebdd5f13`
+- `ci/http-capacity-probe.py`: `42c2fed9088fa71c5d5f52a42ff9ba481cdb5cbb`
+- `ci/test-http-capacity-probe.py`: `870b3f9c252cd1cbf8fa6074f72d01667d88a94e`
 
 These tests use **no Oreslang compiler**. The hosted PR workflow
 runs the 26 offline cases, and the manually reviewed exact-SHA
 native runner runs them again before the bounded 45-second live
 saturation probe. All native saturation results are currently
 **NOT_EXECUTED**; no 503 success is claimed.
+
+The additional five local oracle tests verify that socket ownership is
+retained for successful dials, send failures close their sockets, and
+**all 80 sockets (or all 64 successfully established ones)** are closed
+after both successful and failed synthetic saturation outcomes. Local
+unit tests deliberately print a synthetic `HTTP_CAPACITY_PASS` from
+mocked I/O; that text is **not** a native server result.
