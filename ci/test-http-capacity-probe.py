@@ -135,6 +135,45 @@ class CapacityOracleTests(unittest.TestCase):
                         probe.verify_saturation(attempts=attempts, minimum=minimum)
             check.assert_not_called()
 
+    def test_partial_connect_returns_owned_socket_and_exact_request(self):
+        class FakeSocket:
+            def __init__(self):
+                self.messages = []
+                self.timeout = None
+                self.closed = False
+            def settimeout(self, value):
+                self.timeout = value
+            def sendall(self, data):
+                self.messages.append(data)
+            def close(self):
+                self.closed = True
+
+        sock = FakeSocket()
+        with mock.patch.object(probe.socket, "create_connection", return_value=sock):
+            received = probe.connect_partial(0)
+        self.assertIs(received, sock)
+        self.assertEqual(sock.messages, [probe.PENDING_BODY])
+        self.assertEqual(sock.timeout, 2.0)
+        self.assertFalse(sock.closed)
+        sock.close()
+
+    def test_partial_connect_write_failure_closes_socket(self):
+        class FakeSocket:
+            def __init__(self):
+                self.closed = False
+            def settimeout(self, value):
+                pass
+            def sendall(self, data):
+                raise BrokenPipeError("simulated transport abort")
+            def close(self):
+                self.closed = True
+
+        sock = FakeSocket()
+        with mock.patch.object(probe.socket, "create_connection", return_value=sock):
+            with self.assertRaises(BrokenPipeError):
+                probe.connect_partial(0)
+        self.assertTrue(sock.closed)
+
 
 if __name__ == "__main__":
     result = unittest.main(verbosity=1, exit=False).result
