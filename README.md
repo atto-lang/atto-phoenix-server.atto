@@ -70,5 +70,5 @@ bodies against the 64-admission listener. It requires at least 65
 established sockets, **an explicit HTTP 503**, and post-pressure
 healthy responses; silent or timed-out sockets cannot satisfy the
 503 gate. `ci/test-http-capacity-probe.py` tests the oracle offline.
-Local verified host checks: **31/31** under normal and optimized Python.
+Local verified host checks: **32/32** under normal and optimized Python.
 The actual 503/overload runtime result remains **NOT_EXECUTED**.
