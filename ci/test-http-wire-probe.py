@@ -227,6 +227,34 @@ class OracleTests(unittest.TestCase):
                 probe.verify_disconnect_churn(waves=1, sockets_per_wave=1)
 
 
+    def test_http_lf_only_rejection_is_not_accepted(self):
+        with self.assertRaises(AssertionError):
+            fake_response(b"HTTP/1.1 400 Bad Request\n\n")
+
+    def test_http_600_status_is_not_a_valid_rejection(self):
+        with self.assertRaises(AssertionError):
+            fake_response(b"HTTP/1.1 600 Invalid\r\n\r\n")
+
+    def test_http_599_status_is_a_valid_rejection(self):
+        self.assertEqual(fake_response(b"HTTP/1.1 599 Error\r\n\r\n"), 599)
+
+    def test_http_302_does_not_reject_oversized_body(self):
+        with mock.patch.object(probe, "exchange", return_value=(302, b"redirect")):
+            with self.assertRaises(AssertionError):
+                probe.verify_oversized()
+
+    def test_full_body_boundary_cannot_accept_truncation(self):
+        def bad_echo(method, path, data=None, headers=None, timeout=7):
+            if method == "GET":
+                return 200, b"hello from oreslang"
+            if data is not None and len(data) == 16384:
+                return 200, data[:-1]
+            return 200, data or b""
+        with mock.patch.object(probe, "exchange", side_effect=bad_echo):
+            with self.assertRaises(AssertionError):
+                probe.verify_success()
+
+
 if __name__ == "__main__":
     result = unittest.main(verbosity=1, exit=False).result
     if result.wasSuccessful():
