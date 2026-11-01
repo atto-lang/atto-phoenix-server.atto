@@ -286,7 +286,7 @@ The exact 64-request capacity, resource accounting, supervisor
 replacement, graceful drain, five-second deadline, and post-test
 memory/descriptor stability remain separate promotion gates.
 
-`ci/test-http-capacity-probe.py` has **31 offline host-only tests**
+`ci/test-http-capacity-probe.py` has **32 offline host-only tests**
 for malformed HTTP status lines, false 200/302/100/600 success,
 408-only and closure-only outcomes, insufficient established sockets,
 silent pending connections, real local socket-pair I/O, and two-step
@@ -294,7 +294,7 @@ recovery. The suite passed locally under normal and optimized Python
 with the following **byte-identical GitHub blob IDs**:
 
 - `ci/http-capacity-probe.py`: `42c2fed9088fa71c5d5f52a42ff9ba481cdb5cbb`
-- `ci/test-http-capacity-probe.py`: `870b3f9c252cd1cbf8fa6074f72d01667d88a94e`
+- `ci/test-http-capacity-probe.py`: `7052384ea17e7fad86649c52d581afaacdfda171`
 
 These tests use **no Oreslang compiler**. The hosted PR workflow
 runs the 26 offline cases, and the manually reviewed exact-SHA
@@ -308,3 +308,13 @@ retained for successful dials, send failures close their sockets, and
 after both successful and failed synthetic saturation outcomes. Local
 unit tests deliberately print a synthetic `HTTP_CAPACITY_PASS` from
 mocked I/O; that text is **not** a native server result.
+
+A further end-to-end host self-test runs an actual localhost TCP
+server (not Oreslang), holds 64 incomplete requests and responds 503
+to overload. It verified 80 established connections, 16 explicit
+HTTP 503 responses, cleanup, and two healthy recovery requests.
+The full **32/32** tests passed locally both with standard Python
+and `-O`. Git blob SHA for the exact executed test file is
+`7052384ea17e7fad86649c52d581afaacdfda171`. The synthetic
+server is merely a controlled test fixture and does not establish
+that the production Oreslang server returns 503 under pressure.
