@@ -47,7 +47,7 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
     try {approval=validateUpgrade(req,{origins,hosts,allowLoopbackCleartext});}catch{reject(socket,400);return;}
     if(sockets.size>=maxConnections){reject(socket,503);return;}
     let principal,session;
-    try {principal=authenticate(req);if(!principal)throw Error('unauthorized');session=getSession(principal);if(!session || typeof session.receive!=='function'||typeof session.detach!=='function')throw Error('session missing');}
+    try {principal=authenticate(req);if(!principal || typeof principal.id!=='string' || principal.id.length<1 || principal.id.length>256)throw Error('unauthorized principal');session=getSession(principal);if(!session || typeof session.receive!=='function'||typeof session.detach!=='function')throw Error('session missing');}
     catch {reject(socket,403);return;}
     const connectionId=randomUUID();
     const transport={connectionId,origin:approval.origin,user:principal.id};
@@ -61,6 +61,7 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
       try {session.detach(connectionId);} catch {faultCounts.detach++;}
     };
     socket.on('close',cleanup);socket.on('error',cleanup);
+    socket.on('end',()=>{cleanup();socket.destroy();});
     const write=(buf)=>{
       if(finished||socket.destroyed)return false;
       if(buf.length+socket.writableLength>maxPendingBytes){shutdown(1013,'backpressure');return false;}

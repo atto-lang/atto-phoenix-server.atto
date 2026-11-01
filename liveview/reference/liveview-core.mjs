@@ -42,7 +42,7 @@ export class LiveViewSession {
     this.state=freeze(initialState); this.render=render; this.reduce=reduce;
     this.authorize=authorize; this.maxHistory=maxHistory; this.maxDedup=maxDedup;
     this.revision=0; this.history=[]; this.seen=new Map(); this.subscribers=new Map();
-    this.tree=render(freeze(this.state));validateTree(this.tree,origin,[rootId]);
+    this.tree=freeze(render(freeze(this.state)));validateTree(this.tree,origin,[rootId]);
     this._packet(this._snapshot()); // initial state must fit a complete wire snapshot
     // The root ID used by diffView is the DOM mount ID. Callers may configure it.
   }
@@ -57,7 +57,7 @@ export class LiveViewSession {
   _broadcast(senderId, frame) {
     for(const [id,send] of this.subscribers) {
       if(id===senderId || !this.joined.has(id))continue;
-      try {send(frame);} catch {this.detach(id);}
+      try {send(freeze(frame));} catch {this.detach(id);}
     }
   }
   _snapshot() { return {v:VERSION,type:'snapshot',rev:this.revision,children:freeze(this.tree)}; }
@@ -80,7 +80,7 @@ export class LiveViewSession {
       if(frame.resume_rev===this.revision) return [this._packet(this._ready())];
       const chain=[]; let rev=frame.resume_rev;
       for(const item of this.history) if(item.prev===rev) {chain.push(item);rev=item.rev;}
-      if(rev===this.revision && chain.length>0) return [...chain.map(x=>this._packet(x)),this._packet(this._ready())];
+      if(rev===this.revision && chain.length>0) return [...chain.map(x=>this._packet(freeze(x))),this._packet(this._ready())];
       return [this._packet(this._snapshot()),this._packet(this._ready())];
     }
     assert(this.joined.has(transport.connectionId),'join required before messages');
@@ -100,7 +100,7 @@ export class LiveViewSession {
     if(frame.base_rev!==this.revision) return [{v:VERSION,type:'event_rejected',event_id:frame.event_id,code:'stale_revision',rev:this.revision}];
     const next=this.reduce(freeze(this.state),frame.name,freeze(frame.payload),transport);
     assert(next!==undefined,'reducer returned undefined');
-    const tree=this.render(freeze(next));validateTree(tree,this.origin,[this.rootId]);
+    const tree=freeze(this.render(freeze(next)));validateTree(tree,this.origin,[this.rootId]);
     const ops=diffView(this.tree,tree,this.rootId);
     // Patch is rejected before committing if it cannot fit; use snapshot when needed.
     assert(Number.isSafeInteger(this.revision) && this.revision>=0 && this.revision<Number.MAX_SAFE_INTEGER,
@@ -113,9 +113,9 @@ export class LiveViewSession {
     this.state=freeze(next);this.tree=tree;this.revision=rev;
     this.seen.set(frame.event_id,{rev,fingerprint});
     if(this.seen.size>this.maxDedup) this.seen.delete(this.seen.keys().next().value);
-    if(patch) {this.history.push(patch);if(this.history.length>this.maxHistory) this.history.shift();}
+    if(patch) {this.history.push(freeze(patch));if(this.history.length>this.maxHistory) this.history.shift();}
     else this.history=[];
     this._broadcast(transport.connectionId,patch||snapshot);
-    return [patch||snapshot,{v:VERSION,type:'event_ack',event_id:frame.event_id,rev}];
+    return [freeze(patch||snapshot),{v:VERSION,type:'event_ack',event_id:frame.event_id,rev}];
   }
 }
