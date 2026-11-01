@@ -59,3 +59,29 @@ bounded wire/message/session queue, and performs no external network requests.
 single demo principal, no persistent auth backing or durable idempotency, and
 no native Oreslang guest. It cannot be used as a TLS termination/server
 replacement. To implement the native runtime, follow `docs/NATIVE_BOUNDARY.md`.
+
+## E2E and transport hardening (2026-10-31)
+
+The test harness now includes a real loopback HTTP/WebSocket end-to-end suite
+(`tests/e2e.test.mjs`). It exercises cookie/Origin/CSRF admission, two
+subscribers receiving authoritative patches, exact revision recovery after a
+reconnect, duplicate-event suppression, and stale-revision resync. Inbound
+frame fragmentation is capped even for zero-byte fragments; message-rate,
+connection, pending-byte and idle-time budgets are enforced. The browser now
+requests the required `ores-liveview-v1` WebSocket subprotocol and selects
+`ws:`/`wss:` based on the document scheme.
+
+The **optional** Chromium test (`tests/browser-e2e.py`) covers browser DOM clicks,
+two-tab broadcasts and reload. It requires Python Playwright and an unrestricted
+loopback browser network. Run it separately:
+
+```sh
+python -m playwright install chromium
+python tests/browser-e2e.py
+```
+
+Browser automation can be blocked by environment policy even if the Node socket
+E2E suite passes; do not report it as passing unless it actually executes.
+All reference tests remain **HOST_REFERENCE_ONLY**, not native Oreslang or five-
+backend evidence. Keep the WebSocket runtime and trusted compiler approval gate
+blocked until separately verified.

@@ -40,9 +40,9 @@ test('snapshot fallback when history too old',()=>{const live=session();live.max
 test('large render refused without changing state or revision',()=>{const live=new LiveViewSession({viewId:'v',sessionId:'s',csrfToken:'secure-token-123456',origin,initialState:{count:0},render:s=>[{tag:'div',id:'a',text:s.count?'x'.repeat(8193):'ok'}],reduce:()=>({count:1}),authorize:()=>true});live.receive({v:1,type:'join',view_id:'v',session_id:'s',csrf:'secure-token-123456',resume_rev:-1},transport);assert.throws(()=>live.receive({v:1,type:'event',event_id:'12345678',name:'increment',payload:{},base_rev:0},transport));assert.equal(live.revision,0);});
 test('client sends first join then one in-flight event; ack unlocks next',()=>{
   const root=makeRoot();const sent=[];let socket;
-  class Socket{constructor(url){this.url=url;this.readyState=0;this.listeners={};socket=this;}addEventListener(k,fn){this.listeners[k]=fn;}send(data){sent.push(JSON.parse(data));}close(){this.readyState=3;}emit(k,data){this.listeners[k]({data});}}
+  class Socket{constructor(url,protocol){this.url=url;this.protocol=protocol;this.readyState=0;this.listeners={};socket=this;}addEventListener(k,fn){this.listeners[k]=fn;}send(data){sent.push(JSON.parse(data));}close(){this.readyState=3;}emit(k,data){this.listeners[k]({data});}}
   const client=new OresLiveView({root,url:'wss://example.test/live',sessionId:'s1',csrfToken:'secure-token-123456',webSocket:Socket,randomUUID:(()=>{let n=0;return()=>`client-${++n}`;})()});
-  client.start();socket.readyState=1;socket.emit('open');assert.equal(sent[0].resume_rev,-1);
+  client.start();assert.equal(socket.protocol,'ores-liveview-v1');socket.readyState=1;socket.emit('open');assert.equal(sent[0].resume_rev,-1);
   socket.emit('message',JSON.stringify({v:1,type:'snapshot',rev:0,children:initial}));socket.emit('message',JSON.stringify({v:1,type:'ready',rev:0}));
   client.dispatch('increment');client.dispatch('increment');assert.equal(sent.filter(m=>m.type==='event').length,1);
   const id=sent[1].event_id;

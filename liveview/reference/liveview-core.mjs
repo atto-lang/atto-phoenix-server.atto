@@ -41,12 +41,25 @@ export class LiveViewSession {
     this.viewId=viewId; this.sessionId=sessionId; this.csrfToken=csrfToken; this.rootId=rootId; this.origin=origin; this.joined=new Set();
     this.state=freeze(initialState); this.render=render; this.reduce=reduce;
     this.authorize=authorize; this.maxHistory=maxHistory; this.maxDedup=maxDedup;
-    this.revision=0; this.history=[]; this.seen=new Map();
+    this.revision=0; this.history=[]; this.seen=new Map(); this.subscribers=new Map();
     this.tree=render(freeze(this.state));validateTree(this.tree,origin,[rootId]);
     this._packet(this._snapshot()); // initial state must fit a complete wire snapshot
     // The root ID used by diffView is the DOM mount ID. Callers may configure it.
   }
-  detach(connectionId) { this.joined.delete(connectionId); }
+  // Only the authenticated WebSocket transport can install a subscriber.
+  // Publish after a successful state/revision commit; a slow peer must never
+  // roll back an already committed event or block another session.
+  attach(connectionId, send) {
+    assert(typeof connectionId==='string' && connectionId.length>0 && typeof send==='function', 'invalid subscription');
+    this.subscribers.set(connectionId,send);
+  }
+  detach(connectionId) { this.joined.delete(connectionId); this.subscribers.delete(connectionId); }
+  _broadcast(senderId, frame) {
+    for(const [id,send] of this.subscribers) {
+      if(id===senderId || !this.joined.has(id))continue;
+      try {send(frame);} catch {this.detach(id);}
+    }
+  }
   _snapshot() { return {v:VERSION,type:'snapshot',rev:this.revision,children:freeze(this.tree)}; }
   _ready() { return {v:VERSION,type:'ready',rev:this.revision}; }
   _packet(frame) { assert(new TextEncoder().encode(JSON.stringify(frame)).length<=MAX_FRAME,'outgoing frame too large'); return frame; }
@@ -92,6 +105,7 @@ export class LiveViewSession {
     if(this.seen.size>this.maxDedup) this.seen.delete(this.seen.keys().next().value);
     if(patch) {this.history.push(patch);if(this.history.length>this.maxHistory) this.history.shift();}
     else this.history=[];
+    this._broadcast(transport.connectionId,patch||snapshot);
     return [patch||snapshot,{v:VERSION,type:'event_ack',event_id:frame.event_id,rev}];
   }
 }

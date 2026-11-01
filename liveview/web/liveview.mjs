@@ -174,7 +174,8 @@ export class OresLiveView {
   start() {
     assert(!this.closed,'client already closed');
     if (this.socket && [0,1].includes(this.socket.readyState)) return;
-    const socket=new this.webSocket(this.url); this.socket=socket;
+    // The server requires this explicit subprotocol; the browser must offer it.
+    const socket=new this.webSocket(this.url,'ores-liveview-v1'); this.socket=socket;
     socket.addEventListener('open',()=> {
       if (this.closed || this.socket!==socket) return;
       this.ready=false;

@@ -7,7 +7,7 @@ import {LiveViewSession} from '../reference/liveview-core.mjs';
 import {encodeClientFrame} from '../reference/ws-wire.mjs';
 import {installReferenceGateway} from '../reference/ws-gateway.mjs';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
-async function setup() {
+async function setup(gatewayOptions={}) {
   const server=http.createServer((req,res)=>{res.writeHead(404);res.end();});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   const port=server.address().port,origin=`http://127.0.0.1:${port}`;
@@ -15,7 +15,7 @@ async function setup() {
     render:s=>[{tag:'span',id:'value',text:String(s.count)}],reduce:(s,name)=>{if(name!=='increment')throw Error('invalid event');return {count:s.count+1};},
     authorize:t=>t.user==='alice'&&t.origin===origin});
   const gateway=installReferenceGateway(server,{origins:new Set([origin]),hosts:new Set([`127.0.0.1:${port}`]),allowLoopbackCleartext:true,
-    authenticate:req=>req.headers.cookie==='session=allow' ? {id:'alice'}:null,getSession:()=>session,maxConnections:2});
+    authenticate:req=>req.headers.cookie==='session=allow' ? {id:'alice'}:null,getSession:()=>session,maxConnections:2,...gatewayOptions});
   return {server,gateway,port,origin,session,async stop(){gateway.close();await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()));}};
 }
 function request(port,origin,{cookie='session=allow',path='/live',key=randomBytes(16).toString('base64'),extras=''}={}){
@@ -67,5 +67,40 @@ test('unmasked frames close with protocol error and detach view',async()=>{
     const c=await connect(env.port,request(env.port,env.origin));c.socket.write(Buffer.from([0x81,2,123,125]));
     const frames=await c.readFrames(1);assert.equal(frames[0].opcode,8);assert.equal(frames[0].data.readUInt16BE(0),1002);
     c.socket.destroy();await delay(10);assert.equal(env.gateway.connections,0);
+  }finally{await env.stop();}
+});
+
+test('real TCP enforces per-connection message flood budget with 1008',async()=>{
+  const env=await setup({maxMessagesPerWindow:2,messageWindowMs:10000});
+  try{
+    const c=await connect(env.port,request(env.port,env.origin));
+    const join={v:1,type:'join',view_id:'counter',session_id:'s1',csrf:'valid-token-12345678',resume_rev:-1};
+    c.socket.write(encodeClientFrame(1,JSON.stringify(join)));
+    await c.readFrames(2);
+    c.socket.write(encodeClientFrame(1,JSON.stringify({v:1,type:'resync',view_id:'counter',revision:0})));
+    await c.readFrames(2);
+    c.socket.write(encodeClientFrame(1,JSON.stringify({v:1,type:'resync',view_id:'counter',revision:0})));
+    const result=await c.readFrames(1);
+    assert.equal(result[0].opcode,8);assert.equal(result[0].data.readUInt16BE(0),1008);
+    c.socket.destroy();
+  }finally{await env.stop();}
+});
+test('real TCP enforces a finite idle timeout and closes 1001',async()=>{
+  const env=await setup({idleTimeoutMs:75});
+  try{
+    const c=await connect(env.port,request(env.port,env.origin));
+    const result=await c.readFrames(1);
+    assert.equal(result[0].opcode,8);assert.equal(result[0].data.readUInt16BE(0),1001);
+    c.socket.destroy();
+  }finally{await env.stop();}
+});
+test('real TCP rejects additional clients at connection quota with HTTP 503',async()=>{
+  const env=await setup({maxConnections:1});
+  try{
+    const first=await connect(env.port,request(env.port,env.origin));
+    assert.match(first.status,/101 Switching Protocols/);
+    const second=await connect(env.port,request(env.port,env.origin));
+    assert.match(second.status,/503 Rejected/);
+    second.socket.destroy();first.socket.destroy();
   }finally{await env.stop();}
 });

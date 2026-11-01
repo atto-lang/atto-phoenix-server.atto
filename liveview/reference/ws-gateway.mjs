@@ -32,8 +32,11 @@ export function validateUpgrade(req,{origins,hosts,allowLoopbackCleartext=false,
   if(!tokenList(h['sec-websocket-protocol']||'').includes('ores-liveview-v1'))fail('missing protocol');
   return {accept:createHash('sha1').update(key+MAGIC).digest('base64'),origin:h.origin};
 }
-export function installReferenceGateway(server,{origins,hosts,authenticate,getSession,maxConnections=32,maxPendingBytes=131072,allowLoopbackCleartext=false}={}) {
+export function installReferenceGateway(server,{origins,hosts,authenticate,getSession,maxConnections=32,maxPendingBytes=131072,maxMessagesPerWindow=128,messageWindowMs=10000,idleTimeoutMs=60000,allowLoopbackCleartext=false}={}) {
   if(typeof authenticate!=='function'||typeof getSession!=='function')throw new TypeError('explicit session authentication and lookup required');
+  for(const [name,value] of Object.entries({maxConnections,maxPendingBytes,maxMessagesPerWindow,messageWindowMs,idleTimeoutMs})) {
+    if(!Number.isSafeInteger(value)||value<1)throw new RangeError('invalid transport limit: '+name);
+  }
   const sockets=new Set();
   const reject=(socket,code=403)=>{
     if(!socket.destroyed){socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);}
@@ -48,7 +51,7 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
     const connectionId=randomUUID();
     const transport={connectionId,origin:approval.origin,user:principal.id};
     const parser=new ClientFrameParser({maxMessage:WS_MAX_MESSAGE});
-    let finished=false,pongs=0,lastPing=0;
+    let finished=false,pongs=0,lastPing=0,messages=0,windowStart=Date.now();
     const cleanup=()=>{if(finished)return;finished=true;sockets.delete(socket);session.detach(connectionId);};
     socket.on('close',cleanup);socket.on('error',cleanup);
     const write=(buf)=>{
@@ -62,6 +65,12 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
       socket.end(encodeServerFrame(8,payload));cleanup();
     };
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+approval.accept+'\r\nSec-WebSocket-Protocol: ores-liveview-v1\r\n\r\n');
+    socket.setTimeout(idleTimeoutMs,()=>shutdown(1001,'idle timeout'));
+    if(typeof session.attach==='function')session.attach(connectionId,(reply)=>{
+      const bytes=Buffer.from(JSON.stringify(reply));
+      if(bytes.length>WS_MAX_MESSAGE){shutdown(1009,'frame too large');return;}
+      write(encodeServerFrame(1,bytes));
+    });
     sockets.add(socket);
     const receive=(data)=>{
       if(finished)return;
@@ -75,6 +84,9 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
             write(encodeServerFrame(10,message.data));continue;
           }
           if(message.type==='pong')continue;
+          const now=Date.now();
+          if(now-windowStart>=messageWindowMs){windowStart=now;messages=0;}
+          if(++messages>maxMessagesPerWindow){shutdown(1008,'message rate exceeded');return;}
           let frame;
           try{frame=JSON.parse(message.data);}catch{shutdown(1007,'invalid JSON');return;}
           const replies=session.receive(frame,transport);

@@ -20,3 +20,15 @@ test('reject oversized pending frame input',()=>{const p=new ClientFrameParser({
 test('valid close frame and no additional client frames',()=>{const payload=Buffer.from([0x03,0xE8]);const p=new ClientFrameParser();assert.deepEqual(p.feed(encodeClientFrame(8,payload)),[{type:'close',data:payload}]);assert.throws(()=>p.feed(encodeClientFrame(1,'hi')),WireError);});
 test('invalid close codes, lengths and reasons are rejected',()=>{assert.throws(()=>parse(encodeClientFrame(8,Buffer.from([0]))),WireError);assert.throws(()=>parse(encodeClientFrame(8,Buffer.from([0x03,0xee]))),WireError);assert.throws(()=>parse(encodeClientFrame(8,Buffer.from([0x03,0xe8,0xc3]))),e=>e.closeCode===1007);});
 test('server sends unmasked text and pong frames',()=>{const f=encodeServerFrame(1,'hi');assert.deepEqual([...f],[0x81,2,104,105]);const p=encodeServerFrame(10,'x');assert.equal(p[0],0x8a);});
+
+test('deny unbounded zero-byte WebSocket fragmentation',()=>{
+  const p=new ClientFrameParser({maxFragments:4});
+  p.feed(encodeClientFrame(1,'',{fin:false}));
+  for(let i=0;i<3;i++)p.feed(encodeClientFrame(0,'',{fin:false}));
+  assert.throws(()=>p.feed(encodeClientFrame(0,'',{fin:false})),e=>e.closeCode===1009);
+});
+test('frame budget accepts exact fragment limit and resets on completed message',()=>{
+  const p=new ClientFrameParser({maxFragments:2});
+  assert.deepEqual(p.feed(Buffer.concat([encodeClientFrame(1,'a',{fin:false}),encodeClientFrame(0,'b')])),[{type:'text',data:'ab'}]);
+  assert.deepEqual(p.feed(encodeClientFrame(1,'ok')),[{type:'text',data:'ok'}]);
+});

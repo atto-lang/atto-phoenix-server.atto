@@ -32,8 +32,11 @@ function closeCodeValid(code) {
     (code<1016 || code>=3000); // 1016–2999 reserved
 }
 export class ClientFrameParser {
-  constructor({maxMessage=WS_MAX_MESSAGE,maxBuffer=WS_MAX_MESSAGE+64}={}) {
-    this.maxMessage=maxMessage;this.maxBuffer=maxBuffer;this.pending=Buffer.alloc(0);
+  constructor({maxMessage=WS_MAX_MESSAGE,maxBuffer=WS_MAX_MESSAGE+64,maxFragments=64}={}) {
+    if(!Number.isSafeInteger(maxMessage)||maxMessage<1||
+       !Number.isSafeInteger(maxBuffer)||maxBuffer<1||
+       !Number.isSafeInteger(maxFragments)||maxFragments<1)fail('invalid parser budgets');
+    this.maxMessage=maxMessage;this.maxBuffer=maxBuffer;this.maxFragments=maxFragments;this.pending=Buffer.alloc(0);
     this.fragments=[];this.fragmentBytes=0;this.fragmentOpcode=null;this.closed=false;
   }
   feed(bytes) {
@@ -83,6 +86,7 @@ export class ClientFrameParser {
       }
       this.fragmentBytes+=length;
       if(this.fragmentBytes>this.maxMessage)fail('fragmented message too large',1009);
+      if(this.fragments.length>=this.maxFragments)fail('too many frame fragments',1009);
       this.fragments.push(data);
       if(fin) {
         const full=Buffer.concat(this.fragments,this.fragmentBytes);
