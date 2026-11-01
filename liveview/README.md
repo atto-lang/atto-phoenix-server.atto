@@ -12,7 +12,7 @@ BEAM, or HTMX protocol semantics into the core Oreslang runtime. It contains:
 - `reference/htmx-bridge.mjs`: **separate** HTMX WebSocket OOB HTML encoder and
   safe form-message parser. HTMX does NOT understand native LiveView JSON frames.
 - `tests/liveview.test.mjs`, `tests/replay-wire-e2e.test.mjs`, and `tests/wire-fixtures.test.mjs`: offline and real-socket tests using Node built-ins and a minimal DOM
-  test double; no network connections, no Oreslang compiler or guest execution.
+  test double; real loopback WebSocket tests are included, but no Oreslang compiler or guest is executed.
 - `docs/PROTOCOL.md` and `docs/NATIVE_INTEGRATION.md`: protocol contract, threat
   model, implementation sequence, and explicit release blockers.
 
@@ -22,7 +22,7 @@ BEAM, or HTMX protocol semantics into the core Oreslang runtime. It contains:
 node --test tests/*.test.mjs
 ```
 
-Node 20+ is required for tests. No external packages or network are used.
+Node 20+ is required for tests. There are no external packages; E2E tests open loopback-only TCP sockets.
 
 ## Native status and provenance
 
@@ -131,3 +131,13 @@ atomic DOM updates, event ID validation, and revision rollover protection.
 Three local Node 22.16.0 executions passed 119/119; the code remains an
 independent reference and no native Oreslang compiler or browser Chromium
 end-to-end pass is claimed. See `docs/HARDENING_E2E.md` for detailed limits.
+
+## 2026-11-01 E2E security extension (156 tests)
+
+Two new suites add **37 executable Node host-reference tests**, including 21
+real TCP/WebSocket E2E checks. Browser WebSocket negotiation is verified before
+join; early/unsolicited ACKs cannot remove queued events; query parameters are
+forbidden on the first-party socket URL; and void-element DOM patches are
+rejected atomically. Three clean Node.js 22.16.0 runs passed **156/156** each.
+This is not native Oreslang execution or Chromium browser evidence. See
+`docs/HARDENING_156.md` for the test cases, threat model and release gates.

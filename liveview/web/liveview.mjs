@@ -12,6 +12,7 @@ const EVENT_ID = /^[0-9a-fA-F-]{8,128}$/;
 const ATTR = /^(?:id|class|title|role|name|type|value|placeholder|tabindex|disabled|checked|for|href|src|alt|method|action|autocomplete|readonly|required|selected|aria-[a-z0-9_-]{1,64}|data-ores-[a-z0-9_-]{1,64})$/;
 const TAGS = new Set('div span p strong em b i button input form label ul ol li section article header footer main nav h1 h2 h3 h4 a textarea select option table thead tbody tr td th small pre code br hr img'.split(' '));
 const BAD_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const VOID_ELEMENTS = new Set(['input','img','br','hr']);
 
 function fail(message) { throw new Error('ORES_LIVEVIEW_PROTOCOL: ' + message); }
 function assert(cond, message) { if (!cond) fail(message); }
@@ -56,7 +57,7 @@ function validateNode(node, origin, ids, count, depth=0) {
     assert(Array.isArray(node.children) && node.children.length <= MAX_NODES, 'invalid children');
     for (const child of node.children) validateNode(child, origin, ids, count, depth+1);
   }
-  if (['input','img','br','hr'].includes(node.tag))
+  if (VOID_ELEMENTS.has(node.tag))
     assert(node.text === undefined && (node.children === undefined || node.children.length===0),
       'void elements cannot have content');
   if (node.text !== undefined) {
@@ -102,7 +103,10 @@ export function applyPatch(root, ops, origin) {
     assert(op && typeof op === 'object' && !Array.isArray(op), 'invalid operation');
     assert(['set_text','set_attr','remove_attr','replace_children'].includes(op.op), 'unknown operation');
     const target = targetFor(root,op.id);
-    if (op.op === 'set_text') boundedString(op.text);
+    if (op.op === 'set_text') {
+      assert(!VOID_ELEMENTS.has(target.tagName?.toLowerCase()), 'void element cannot have text');
+      boundedString(op.text);
+    }
     if (op.op === 'set_attr') validateAttr(op.name,op.value,origin);
     if (op.op === 'remove_attr') validateAttrName(op.name);
     if (op.op === 'set_attr' || op.op === 'remove_attr') assert(op.name !== 'id', 'cannot change identity');
@@ -111,6 +115,7 @@ export function applyPatch(root, ops, origin) {
     assert(!mutations.has(key), 'duplicate patch mutation');
     mutations.add(key);
     if (op.op === 'replace_children') {
+      assert(!VOID_ELEMENTS.has(target.tagName?.toLowerCase()), 'void element cannot have children');
       validateTree(op.children,origin,[root.id]); assert(op.children.length <= MAX_NODES,'oversized children');
       for(const id of treeIds(op.children)) {
         assert(!replacementIds.has(id), 'duplicate ID across replacement operations');
@@ -146,7 +151,8 @@ export function validateWsUrl(value, browserLocation) {
     const local = ['localhost','127.0.0.1','[::1]'].includes(expected.hostname);
     assert(target.protocol === 'wss:' || local, 'insecure WebSocket prohibited');
   }
-  assert(!target.username && !target.password && !target.hash, 'WebSocket URL contains credentials/fragment');
+  assert(!target.username && !target.password && !target.hash && !target.search,
+    'WebSocket URL contains credentials/fragment/query');
   return target.href;
 }
 function safePayload(value,depth=0) {
@@ -187,6 +193,11 @@ export class OresLiveView {
     const socket=new this.webSocket(this.url,'ores-liveview-v1'); this.socket=socket;
     socket.addEventListener('open',()=> {
       if (this.closed || this.socket!==socket) return;
+      if(socket.protocol!=='ores-liveview-v1') {
+        this.onError(new Error('ORES_LIVEVIEW_PROTOCOL: WebSocket subprotocol mismatch'));
+        socket.close(1002,'protocol mismatch');
+        return;
+      }
       this.ready=false;
       this._send({v:VERSION,type:'join',view_id:this.viewId,session_id:this.sessionId,csrf:this.csrfToken,client_id:this.clientId,resume_rev:this.rev});
     });
@@ -230,9 +241,12 @@ export class OresLiveView {
       this._flush();
     } else if(frame.type==='event_ack') {
       assert(typeof frame.event_id==='string' && Number.isSafeInteger(frame.rev) && frame.rev>=0,'invalid event ack');
-      const ahead=frame.rev>this.rev;
       const i=this.queue.findIndex(e=>e.id===frame.event_id);
-      if(i>=0) this.queue.splice(i,1);
+      assert(i>=0, 'unrecognized event acknowledgment');
+      const entry=this.queue[i];
+      assert(entry.base_rev!==null && frame.rev>entry.base_rev, 'invalid event acknowledgment revision');
+      const ahead=frame.rev>this.rev;
+      this.queue.splice(i,1);
       if(ahead) { this.ready=false; this._requestResync(); }
       else this._flush();
     } else if(frame.type==='event_rejected') {

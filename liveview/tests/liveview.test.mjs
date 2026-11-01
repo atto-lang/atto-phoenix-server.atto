@@ -91,7 +91,7 @@ test('deny URL credentials even for same-origin asset paths',()=>{
 });
 test('host refuses invalid event acknowledgement revisions',()=>{
   const root=makeRoot();const sockets=[];
-  class Socket{constructor(){this.readyState=0;this.listeners={};sockets.push(this);}addEventListener(k,cb){this.listeners[k]=cb;}send(){}close(){}emit(k,data){this.listeners[k]({data});}}
+  class Socket{constructor(url,protocol){this.protocol=protocol;this.readyState=0;this.listeners={};sockets.push(this);}addEventListener(k,cb){this.listeners[k]=cb;}send(){}close(){}emit(k,data){this.listeners[k]({data});}}
   const client=new OresLiveView({root,url:'wss://example.test/live',sessionId:'s1',csrfToken:'secure-token-123456',webSocket:Socket,randomUUID:()=> 'deadbeef-dead-beef-8888-deadbeefdead'});
   client.start();sockets[0].readyState=1;sockets[0].emit('open');
   sockets[0].emit('message',JSON.stringify({v:1,type:'snapshot',rev:0,children:initial}));
