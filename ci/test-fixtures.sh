@@ -113,6 +113,7 @@ git -C "$repo" checkout -- ci/oreslang-files.txt
 check_bad
 git -C "$repo" checkout -- ci/oreslang-files.txt
 # The mode gate also catches missing tracked non-Oreslang runner inputs.
+mkdir -p "$repo/docs"
 printf 'tracked docs\n' > "$repo/docs/gate.txt"
 git -C "$repo" add docs/gate.txt
 check_ok
