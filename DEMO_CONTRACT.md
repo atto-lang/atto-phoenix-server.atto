@@ -215,7 +215,7 @@ these acceptance checks:
 A silent socket timeout, malformed or truncated status, 1xx/2xx/3xx,
 or false body equality fails the wire probe. `ci/test-http-wire-probe.py`
 runs offline against synthetic localhost sockets and mocked HTTP
-responses. It verified **16/16 host-only oracle regressions locally**
+responses. The earlier version verified **16/16 host-only oracle regressions locally**
 under Python 3.13.5 both with and without `-O`; the local files
 exactly matched their current GitHub Git blob hashes:
 
@@ -228,3 +228,39 @@ compiler and exact-head live listener. No generic Phoenix, WebSocket,
 load-balancer, security or backend-parity claim is made from synthetic
 oracle tests. The exact native runner requires `python3`, runs the
 16 offline cases, then executes the TCP probe with an outer timeout.
+
+## Expanded churn and fail-closed oracle coverage (2026-11-01)
+
+This later candidate extends the independently checked wire probe with
+four successive waves of 32 GET/POST requests (128 total, eight active
+workers at a time) and per-request body identity. This checks repeated
+actor dispatch and socket churn, *not* 64-admission overload/503.
+It additionally creates and closes 64 deliberately incomplete
+client requests across four waves, then requires a fresh successful
+`GET /hello` after each wave. This checks recovery from client
+disconnects, *not* leak freedom or deterministic actor cancellation.
+
+The probe also verifies strict `/echo` media admission for three
+accepted forms and four denied/missing Content-Type cases.
+An oversized completed request may only return an HTTP 4xx/5xx
+or close/reset; redirect, 2xx, nonstandard 6xx and timeout are
+not accepted as proof of rejection. The raw status oracle now
+requires a proper CRLF terminator and rejects LF-only status lines.
+
+`ci/test-http-wire-probe.py` now declares **34 host-only test
+methods**, including synthetic socket mocks for closure, teardown,
+failed recovery, repeated-wave request identity and malformed
+response classifications. These additional methods have **not**
+been executed on the current candidate in GitHub Actions;
+the earlier 16-test local pass applies only to its earlier exact
+blobs. Current source integrity and any subsequently executed
+tests must be recorded against their own exact Git SHAs.
+
+Still **not covered**: forcing 64 simultaneously active HTTP
+exchanges (as distinct from open TCP sockets), proving 503
+overload admission, actor supervisor replacement, signal-triggered
+graceful drain, memory/FD leak quantification, exact five-second
+deadline semantics, WebSockets or native multi-backend parity.
+These require instrumented runtime/protocol hooks and actual
+reviewed-head native execution; never infer them from churn
+or the host-only oracle.
