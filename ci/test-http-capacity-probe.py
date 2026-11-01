@@ -174,6 +174,79 @@ class CapacityOracleTests(unittest.TestCase):
                 probe.connect_partial(0)
         self.assertTrue(sock.closed)
 
+    def test_saturation_success_cleans_all_eighty_connections(self):
+        connections = []
+
+        class TrackedSocket:
+            def __init__(self):
+                self.closed = False
+            def close(self):
+                self.closed = True
+
+        def dial(_):
+            sock = TrackedSocket()
+            connections.append(sock)
+            return sock
+
+        with mock.patch.object(probe, "healthy", return_value=True), \
+             mock.patch.object(probe, "connect_partial", side_effect=dial) as opened, \
+             mock.patch.object(probe, "collect_responses", return_value=([503, 408], 78)), \
+             mock.patch.object(probe, "wait_for_recovery") as recovered:
+            probe.verify_saturation()
+        self.assertEqual(opened.call_count, 80)
+        self.assertEqual(len(connections), 80)
+        self.assertTrue(all(sock.closed for sock in connections))
+        recovered.assert_called_once()
+
+    def test_failed_saturation_still_closes_every_connection(self):
+        connections = []
+
+        class TrackedSocket:
+            def __init__(self):
+                self.closed = False
+            def close(self):
+                self.closed = True
+
+        def dial(_):
+            sock = TrackedSocket()
+            connections.append(sock)
+            return sock
+
+        with mock.patch.object(probe, "healthy", return_value=True), \
+             mock.patch.object(probe, "connect_partial", side_effect=dial), \
+             mock.patch.object(probe, "collect_responses", return_value=([408], 79)), \
+             mock.patch.object(probe, "wait_for_recovery") as recovered:
+            with self.assertRaises(AssertionError):
+                probe.verify_saturation()
+        self.assertEqual(len(connections), 80)
+        self.assertTrue(all(sock.closed for sock in connections))
+        recovered.assert_not_called()
+
+    def test_insufficient_established_connections_cleanup_is_total(self):
+        connections = []
+
+        class TrackedSocket:
+            def __init__(self):
+                self.closed = False
+            def close(self):
+                self.closed = True
+
+        def dial(i):
+            if i >= 64:
+                raise TimeoutError("synthetic admission failure")
+            sock = TrackedSocket()
+            connections.append(sock)
+            return sock
+
+        with mock.patch.object(probe, "healthy", return_value=True), \
+             mock.patch.object(probe, "connect_partial", side_effect=dial), \
+             mock.patch.object(probe, "collect_responses") as observed:
+            with self.assertRaises(AssertionError):
+                probe.verify_saturation()
+        self.assertEqual(len(connections), 64)
+        self.assertTrue(all(sock.closed for sock in connections))
+        observed.assert_not_called()
+
 
 if __name__ == "__main__":
     result = unittest.main(verbosity=1, exit=False).result
