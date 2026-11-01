@@ -334,16 +334,16 @@ seven-second upper bound is intentionally conservative relative to the
 configured five-second request deadline: **a pass is not evidence of
 precise five-second accounting**, nor actor/FD leak freedom.
 
-`ci/test-http-slow-client-probe.py` includes 20 offline host-only
+`ci/test-http-slow-client-probe.py` includes 23 offline host-only
 checks for 100/200/302/600 false successes, 408/503/599 valid
 rejections, LF-only/truncated/oversized status lines, synthetic live
 TCP rejection/closure/silence/trickling, invalid parameters and
 recovery body corruption. Both files were compared byte-for-byte with
-their GitHub Git blobs and **20/20 tests passed locally under normal
+their GitHub Git blobs and **23/23 tests passed locally under normal
 and optimized Python**:
 
 - Live probe: `e861fea21bfb1481530ed0690df9a9c2a636758b`
-- Offline oracle suite: `9805f396b75b9117b19cb5fe5664337124eca1c7`
+- Offline oracle suite: `0a82402d06fbc72c16ee3dee0bc374679a61c3d4`
 
 The automatic PR job runs only the offline oracle suite. The manually
 authorized exact-SHA native runner runs the oracle and then executes
@@ -351,3 +351,10 @@ the live probe with an outer 30-second timeout. Neither actual Oreslang
 listener execution nor exact-head GitHub Actions step execution is
 implied by these local synthetic results. All runtime evidence remains
 **NOT_EXECUTED** pending the protected private-runner gate.
+
+Three additional offline regression checks exercise slow-body bytes
+against a synthetic loopback TCP server, ensure `main()` executes both
+header/body cases and verifies recovery after each, and fail when a
+mocked response exceeds the seven-second allowance. All **23/23**
+pass under standard Python and `python -O`, with source and test
+hashes verified against the exact committed blobs.
