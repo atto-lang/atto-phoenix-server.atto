@@ -75,7 +75,9 @@ No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim fol
 - Use a dedicated runner with minimal network access and no unrelated secrets.
   Compiler checkouts must not be fetched, copied, or mirrored into another
   organization unless that private-source transfer is independently authorized.
-- The host fixture gate rejects tracked symlinks and gitlinks anywhere in the\n  Git index, not merely under source and test directories. This does not by\n  itself guarantee that a manually approved guest is safe to execute.\n- A queued, blocked, zero-step, skipped, or host-only green job is **not** native
+- The host fixture gate rejects tracked symlinks and gitlinks anywhere in the
+  Git index, not merely under source and test directories. This does not by
+  itself guarantee that a manually approved guest is safe to execute.\n- A queued, blocked, zero-step, skipped, or host-only green job is **not** native
   compiler/guest execution proof. Keep `execution=pending-exact-head` until a
   complete exact-head compile and actual HTTP client/server run succeeds.
 
@@ -163,3 +165,26 @@ of the configured five-second application request deadline.
 These tests are additions to the **reviewed source candidate**, not
 native test passes. GitHub Actions runner assignment, exact compiler
 execution, overload, shutdown and live transport remain separate gates.
+
+### Local exact-blob host regression evidence
+
+The 11-case runner preflight and 24-case Git-index fixture policy suites
+both executed successfully under local Bash and Git. Before execution,
+the local copies were checked against GitHub Git blob IDs:
+
+- `scripts/run-contracts.sh` — `ba7b12441b5fed101bd2586e4dc6b04e43ad7039`
+- `ci/check-fixtures.sh` — `42401d66712ed4753de248663e4b985c63c5fe8b`
+- `ci/test-runner-preflight.sh` — `c240541424c870bedd0fa5bb05ef7c439501a893`
+- `ci/test-fixtures.sh` — `99ed3738fe1034398408b0063c45064e76630e0e`
+
+Observed outputs: `PREFLIGHT_HOST_TESTS_PASS scenarios=11` and
+`FIXTURE_NEGATIVE_TESTS_PASS scenarios=24`. A synthetic Git index
+containing all seven declared test contracts and eight `.ores` files
+also passed the structural inventory gate. Synthetic fixture contents
+were placeholders, so this is **not** a native compile or HTTP run,
+and it is **not** a green GitHub Actions execution.
+
+Latest candidate source-org GitHub Actions [run #41270965534](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/actions/runs/41270965534)
+failed at zero steps with `runner_id=0` for host fixture admission,
+while native guest execution was skipped. Do not promote this
+candidate until exact-head host CI and real Oreslang listener tests run.
