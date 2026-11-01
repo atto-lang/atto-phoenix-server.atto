@@ -132,9 +132,13 @@ kill -0 "$server_pid"
 grep -Fq 'Oreslang Phoenix-style demo listening on loopback:8082' "$server_log"
 [[ "$total" -gt 0 && "$passed" -eq "$total" ]]
 python3 -I -B "$root/ci/test-http-wire-probe.py"
+python3 -I -B "$root/ci/test-http-framing-retirement-probe.py"
 # Do not conflate native .ores client results with this independent Python TCP probe.
 # A timeout, wrong response body, or silent connection is a failed acceptance.
 timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-probe.py"
+# Ambiguous request/pipelined input must retire its connection; a lingering
+# keepalive or an additional HTTP response fails rather than silently passing.
+timeout --signal=TERM --kill-after=5s 35s python3 -I -B "$root/ci/http-framing-retirement-probe.py"
 python3 -I -B "$root/ci/test-http-slow-client-probe.py"
 # Absolute bounded stall checks: an incomplete header/body must not stay
 # open indefinitely merely because the peer periodically trickles bytes.
