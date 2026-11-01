@@ -188,3 +188,43 @@ Latest candidate source-org GitHub Actions [run #41270965534](https://github.com
 failed at zero steps with `runner_id=0` for host fixture admission,
 while native guest execution was skipped. Do not promote this
 candidate until exact-head host CI and real Oreslang listener tests run.
+
+## Byte-accurate HTTP wire probe and oracle tests (2026-11-01)
+
+`ci/http-wire-probe.py` runs only **after** the native Oreslang
+listener and seven native client contracts. Unlike source-only `.ores`
+fixtures, it sends actual HTTP/1.1 bytes using Python's standard
+library, requires full bodies and exact response bytes, and performs
+these acceptance checks:
+
+- Exact successful `/echo` payloads at 0, 1, 16,383 and 16,384
+  bytes and `/hello` body match.
+- Fully transmitted 16,385-byte `/echo` payload must result in an
+  HTTP rejection or an explicit reset/connection close, **never 2xx**.
+- Conflicting Content-Length, Transfer-Encoding/Content-Length,
+  nonnumeric/negative length, duplicate/missing Host must reject or
+  close the connection, never return a successful echo.
+- 32 independent requests (8 concurrent workers) must return
+  the correct per-request body. This tests bounded concurrency
+  and isolation, **not** admission-overload/503 at 64 connections.
+- A partial header must receive a rejection or connection closure
+  within 8.5 seconds of socket timeout (9s wall-clock allowance)
+  and the server must remain responsive afterward. This tests
+  bounded handling, **not** exact five-second request deadlines.
+
+A silent socket timeout, malformed or truncated status, 1xx/2xx/3xx,
+or false body equality fails the wire probe. `ci/test-http-wire-probe.py`
+runs offline against synthetic localhost sockets and mocked HTTP
+responses. It verified **16/16 host-only oracle regressions locally**
+under Python 3.13.5 both with and without `-O`; the local files
+exactly matched their current GitHub Git blob hashes:
+
+- `ci/http-wire-probe.py` `be6c62faf01537985191de452c525fac49bb8ae7`
+- `ci/test-http-wire-probe.py` `5a7ba8150f7b31442aa604dc89afa1fb694df301`
+
+Native execution remains **NOT_EXECUTED** pending the reviewed-SHA
+controller, private Actions runner admission, pinned Java/Graal
+compiler and exact-head live listener. No generic Phoenix, WebSocket,
+load-balancer, security or backend-parity claim is made from synthetic
+oracle tests. The exact native runner requires `python3`, runs the
+16 offline cases, then executes the TCP probe with an outer timeout.
