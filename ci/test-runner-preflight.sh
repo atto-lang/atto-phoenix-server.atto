@@ -12,7 +12,6 @@ mkdir -p "$demo/scripts" "$demo/ci" "$compiler" "$tmp/bin"
 cp "$root/scripts/run-contracts.sh" "$demo/scripts/run-contracts.sh"
 printf '<project/>\n' > "$compiler/pom.xml"
 printf 'no native compilation\n' > "$demo/README.md"
-printf 'PREFLIGHT_SENTINEL: no compiler/guest started\n' > "$demo/ci/check-fixtures.sh"
 cat > "$demo/ci/check-fixtures.sh" <<'CHECK'
 #!/usr/bin/env bash
 echo 'PREFLIGHT_REACHED: no compiler or guest executed' >&2
@@ -61,7 +60,7 @@ run_case 'PREFLIGHT_REACHED'
 run_case 'EXPECTED_DEMO_SHA must be a full lowercase commit SHA' \
   EXPECTED_DEMO_SHA=short
 run_case 'EXPECTED_DEMO_SHA must be a full lowercase commit SHA' \
-  EXPECTED_DEMO_SHA="${demo_sha^^}"
+  EXPECTED_DEMO_SHA="$(printf '%s' "$demo_sha" | tr '[:lower:]' '[:upper:]')"
 run_case 'demo checkout does not match EXPECTED_DEMO_SHA' \
   EXPECTED_DEMO_SHA="$compiler_sha"
 # Worktree substitutions (including untracked files) cannot reach the compiler.
@@ -97,4 +96,4 @@ run_case 'compiler checkout must be clean'
 rm "$compiler/untracked.txt"
 git -C "$compiler" -c commit.gpgsign=false commit --allow-empty -qm 'different compiler'
 run_case 'compiler checkout does not match SOURCE_REF'
-printf 'PREFLIGHT_HOST_NEGATIVE_PASS scenarios=10\n'
+printf 'PREFLIGHT_HOST_CASES_DECLARED scenarios=11\n'
