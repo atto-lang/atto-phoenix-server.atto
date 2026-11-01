@@ -8,6 +8,7 @@ export const MAX_DEPTH = 24;
 const MAX_STRING = 8192;
 const IDENT = /^[A-Za-z][A-Za-z0-9_-]{0,95}$/;
 const EVENT = /^[a-z][a-z0-9_]{0,63}$/;
+const EVENT_ID = /^[0-9a-fA-F-]{8,128}$/;
 const ATTR = /^(?:id|class|title|role|name|type|value|placeholder|tabindex|disabled|checked|for|href|src|alt|method|action|autocomplete|readonly|required|selected|aria-[a-z0-9_-]{1,64}|data-ores-[a-z0-9_-]{1,64})$/;
 const TAGS = new Set('div span p strong em b i button input form label ul ol li section article header footer main nav h1 h2 h3 h4 a textarea select option table thead tbody tr td th small pre code br hr img'.split(' '));
 const BAD_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -55,6 +56,9 @@ function validateNode(node, origin, ids, count, depth=0) {
     assert(Array.isArray(node.children) && node.children.length <= MAX_NODES, 'invalid children');
     for (const child of node.children) validateNode(child, origin, ids, count, depth+1);
   }
+  if (['input','img','br','hr'].includes(node.tag))
+    assert(node.text === undefined && (node.children === undefined || node.children.length===0),
+      'void elements cannot have content');
   if (node.text !== undefined) {
     boundedString(node.text);
     assert(node.children === undefined, 'text and children are exclusive');
@@ -93,6 +97,7 @@ export function applyPatch(root, ops, origin) {
   serializableSize(ops);
   // Validate all payloads and existing targets before any DOM writes.
   const replacementIds = new Set();
+  const mutations = new Set();
   const prepared = ops.map(op => {
     assert(op && typeof op === 'object' && !Array.isArray(op), 'invalid operation');
     assert(['set_text','set_attr','remove_attr','replace_children'].includes(op.op), 'unknown operation');
@@ -101,6 +106,10 @@ export function applyPatch(root, ops, origin) {
     if (op.op === 'set_attr') validateAttr(op.name,op.value,origin);
     if (op.op === 'remove_attr') validateAttrName(op.name);
     if (op.op === 'set_attr' || op.op === 'remove_attr') assert(op.name !== 'id', 'cannot change identity');
+    const key=(op.op==='set_attr'||op.op==='remove_attr')
+      ? JSON.stringify([op.id,'attr',op.name]) : JSON.stringify([op.id,'struct']);
+    assert(!mutations.has(key), 'duplicate patch mutation');
+    mutations.add(key);
     if (op.op === 'replace_children') {
       validateTree(op.children,origin,[root.id]); assert(op.children.length <= MAX_NODES,'oversized children');
       for(const id of treeIds(op.children)) {
@@ -203,6 +212,12 @@ export class OresLiveView {
     assert(frame && frame.v===VERSION && typeof frame.type==='string','bad server frame');
     if(frame.type==='snapshot') {
       assert(Number.isSafeInteger(frame.rev) && frame.rev>=0,'invalid revision');
+      if(frame.rev<this.rev) {
+        // v1 has no epoch-transition handshake. Never silently render an older
+        // actor generation as if it were newer. Require a page/bootstrap reload.
+        this.close();
+        fail('session revision rollback; reload required');
+      }
       applySnapshot(this.root,frame.children,this.origin); this.rev=frame.rev;
     } else if(frame.type==='patch') {
       assert(Number.isSafeInteger(frame.rev) && Number.isSafeInteger(frame.prev) && frame.rev===frame.prev+1,'invalid patch revision');
@@ -242,7 +257,8 @@ export class OresLiveView {
     validateEvent(name,payload);
     assert(this.queue.length<128,'event queue is full');
     const id=this.uuid();
-    assert(typeof id==='string' && id.length<=128,'invalid event ID');
+    assert(typeof id==='string' && EVENT_ID.test(id),'invalid event ID');
+    assert(!this.queue.some(entry=>entry.id===id),'duplicate queued event ID');
     this.queue.push({id,name,payload,sent:false,base_rev:null});
     this._flush();
     return id;

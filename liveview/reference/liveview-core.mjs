@@ -103,6 +103,8 @@ export class LiveViewSession {
     const tree=this.render(freeze(next));validateTree(tree,this.origin,[this.rootId]);
     const ops=diffView(this.tree,tree,this.rootId);
     // Patch is rejected before committing if it cannot fit; use snapshot when needed.
+    assert(Number.isSafeInteger(this.revision) && this.revision>=0 && this.revision<Number.MAX_SAFE_INTEGER,
+      'revision exhausted');
     const rev=this.revision+1;
     let patch={v:VERSION,type:'patch',prev:this.revision,rev,ops};
     if(new TextEncoder().encode(JSON.stringify(patch)).length>MAX_FRAME || ops.length>128) patch=null;

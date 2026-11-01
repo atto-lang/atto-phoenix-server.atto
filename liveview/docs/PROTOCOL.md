@@ -102,3 +102,25 @@ and recovery from DOM hooks mutated by other libraries.
 
 A test-only reference reducer cannot prove any of the unexecuted network,
 compiler, lifecycle, or backend properties.
+
+## V1 control-plane bounds and generation handling
+
+A WebSocket Ping and an unsolicited Pong are both input work. The reference
+transport limits their **combined** count to 32 per 1,000 milliseconds by
+default, in addition to ping pacing and data-message budgets. A flood closes
+only the offending connection with 1008. A reference transport will reject
+an unsupported binary opcode at its header with 1003 and reject malformed
+Close codes/reasons with 1002/1007; no compression extensions are negotiated.
+
+One DOM patch may change multiple distinct attributes on one element, but may
+not apply the same attribute twice or multiple `set_text`/`replace_children`
+structural writes to the same target. Validation occurs before DOM mutation.
+`event_id` must be a valid 8–128-character lowercase/uppercase hex-and-hyphen
+identifier as accepted by the server reference, and queued IDs must be unique.
+
+The V1 protocol has a revision number but **no authenticated epoch change**.
+It rejects a snapshot that lowers the browser's accepted revision instead of
+silently rolling back. An actor restart which resets the revision therefore
+requires a full page/session bootstrap or a future negotiated epoch protocol;
+this is a deliberate fail-closed interoperability limitation, not seamless
+hot-restart support. Revisions must remain JavaScript safe integers.

@@ -11,6 +11,13 @@ export function encodeServerFrame(opcode,payload=Buffer.alloc(0)) {
   const body=Buffer.isBuffer(payload)?payload:Buffer.from(payload);
   if (![0x1,0x2,0x8,0x9,0xA].includes(opcode)) fail('unsupported server opcode');
   if (body.length>WS_MAX_MESSAGE || (opcode>=8 && body.length>125)) fail('oversized outgoing frame',1009);
+  if (opcode===8) {
+    if (body.length===1) fail('invalid outgoing close payload');
+    if (body.length>=2) {
+      if (!closeCodeValid(body.readUInt16BE(0))) fail('invalid outgoing close code');
+      decode(body.subarray(2));
+    }
+  }
   const extra=body.length<126?0:body.length<=65535?2:8;
   const header=Buffer.alloc(2+extra);header[0]=0x80|opcode;header[1]=body.length<126?body.length:extra===2?126:127;
   if(extra===2)header.writeUInt16BE(body.length,2);
@@ -62,6 +69,9 @@ export class ClientFrameParser {
       if(a&0x70)fail('RSV bits set without extension');
       if(!masked)fail('unmasked client frame');
       if(![0,1,2,8,9,10].includes(opcode))fail('invalid opcode');
+      // Binary messages are not part of the first-party protocol. Reject at
+      // the header rather than buffering a potentially huge binary payload.
+      if(opcode===2)fail('binary data not supported',1003);
       if(control && (!fin || (b&127)>125))fail('invalid control frame');
       const indicator=b&127,extra=indicator===126?2:indicator===127?8:0;
       if(this.pending.length<2+extra+4)break;

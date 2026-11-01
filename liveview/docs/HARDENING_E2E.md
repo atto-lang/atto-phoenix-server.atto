@@ -61,3 +61,40 @@ stale writes automatically or provide durable exactly-once effects.
 **Native evidence remains NOT_EXECUTED.** These fixtures are a portability
 contract for Java/GraalVM, LLVM, Wasm, .NET Native AOT and Forge, not
 runtime parity proof. The source security approval gate remains unchanged.
+
+## 2026-11-01 control-plane and DOM atomicity follow-up
+
+Twenty-six new host-reference tests were added in
+`tests/control-plane-e2e.test.mjs` (18) and
+`tests/validation-boundaries.test.mjs` (8):
+
+- A shared, configurable inbound **Ping + Pong** quota blocks unsolicited Pong
+  floods that previously bypassed message-rate admission. The existing ping
+  pacing remains, and a control flood on one real TCP connection cannot block
+  a separate authenticated subscriber.
+- RFC 6455 binary frames are rejected as soon as their header is available,
+  before buffering the unsupported payload. Outgoing WebSocket close frames
+  validate status, code length, and UTF-8 reason as well as frame length.
+- The typed DOM patch interpreter refuses duplicate structural writes and
+  conflicting attribute writes **before performing any DOM mutation**.
+  Invalid event IDs are rejected by the browser before enqueueing, and
+  duplicate queued IDs cannot impersonate an earlier command.
+- A revision rollover past JavaScript's safe integer range cannot commit a
+  reducer result. A browser receiving a lower-revision snapshot closes rather
+  than silently rolling back a view from a different generation; native
+  protocol evolution must introduce an authenticated generation/epoch handoff
+  for transparent actor restarts.
+- Real-socket E2E cases cover malformed Close/JSON, disabled compression,
+  bounded write backpressure (1013), authenticated replay conflicts,
+  control-plane isolation, and 12 consecutive join/close/rejoin cycles without
+  leaked connections or subscriptions.
+
+Verification: Node v22.16.0, `node --test tests/*.test.mjs` passed 119/119
+in **three separate local runs**, zero failed. Built-in Node test coverage:
+96.50% lines, 89.25% branches, and 93.60% functions across measured
+reference and test files. These are HOST_REFERENCE_ONLY results.
+
+These tests do **not** establish a real Chromium pass, GitHub Actions runner
+execution, native Oreslang runtime semantics, production resilience, or
+Java/LLVM/Wasm/.NET/Forge parity. Protect the native runner, leave the existing
+reviewed-SHA controls disabled, and do not transfer private compiler source.

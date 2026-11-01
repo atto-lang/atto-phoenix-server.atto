@@ -121,3 +121,13 @@ subsequent commands. The 14 JSON wire vectors in
 `fixtures/liveview-wire-v1.json` are designed for future exact-byte
 conformance on all five native backends. These tests are still
 `HOST_REFERENCE_ONLY`.
+
+## 2026-11-01 follow-up: 119 host-reference checks
+
+`tests/control-plane-e2e.test.mjs` and `tests/validation-boundaries.test.mjs`
+add 26 checks for Ping/Pong floods, malformed/binary/Close frames, write
+backpressure, session replay conflicts, repeated disconnect cleanup,
+atomic DOM updates, event ID validation, and revision rollover protection.
+Three local Node 22.16.0 executions passed 119/119; the code remains an
+independent reference and no native Oreslang compiler or browser Chromium
+end-to-end pass is claimed. See `docs/HARDENING_E2E.md` for detailed limits.

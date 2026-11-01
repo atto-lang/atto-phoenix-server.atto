@@ -32,9 +32,9 @@ export function validateUpgrade(req,{origins,hosts,allowLoopbackCleartext=false,
   if(!tokenList(h['sec-websocket-protocol']||'').includes('ores-liveview-v1'))fail('missing protocol');
   return {accept:createHash('sha1').update(key+MAGIC).digest('base64'),origin:h.origin};
 }
-export function installReferenceGateway(server,{origins,hosts,authenticate,getSession,maxConnections=32,maxPendingBytes=131072,maxMessagesPerWindow=128,messageWindowMs=10000,idleTimeoutMs=60000,allowLoopbackCleartext=false}={}) {
+export function installReferenceGateway(server,{origins,hosts,authenticate,getSession,maxConnections=32,maxPendingBytes=131072,maxMessagesPerWindow=128,messageWindowMs=10000,maxControlFramesPerWindow=32,controlWindowMs=1000,idleTimeoutMs=60000,allowLoopbackCleartext=false}={}) {
   if(typeof authenticate!=='function'||typeof getSession!=='function')throw new TypeError('explicit session authentication and lookup required');
-  for(const [name,value] of Object.entries({maxConnections,maxPendingBytes,maxMessagesPerWindow,messageWindowMs,idleTimeoutMs})) {
+  for(const [name,value] of Object.entries({maxConnections,maxPendingBytes,maxMessagesPerWindow,messageWindowMs,maxControlFramesPerWindow,controlWindowMs,idleTimeoutMs})) {
     if(!Number.isSafeInteger(value)||value<1)throw new RangeError('invalid transport limit: '+name);
   }
   const sockets=new Set();
@@ -52,7 +52,7 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
     const connectionId=randomUUID();
     const transport={connectionId,origin:approval.origin,user:principal.id};
     const parser=new ClientFrameParser({maxMessage:WS_MAX_MESSAGE});
-    let finished=false,pongs=0,lastPing=0,messages=0,windowStart=Date.now();
+    let finished=false,pings=0,lastPing=0,controls=0,controlWindowStart=Date.now(),messages=0,windowStart=Date.now();
     const cleanup=()=>{
       if(finished)return;
       finished=true;sockets.delete(socket);
@@ -91,13 +91,19 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
       try {
         for(const message of parser.feed(data)) {
           if(message.type==='close'){shutdown(1000);return;}
-          if(message.type==='ping') {
-            // Limit control-frame floods; unsolicited pong has no resource cost.
-            const now=Date.now(); if(now-lastPing>1000){lastPing=now;pongs=0;}
-            if(++pongs>16){shutdown(1008,'ping flood');return;}
-            write(encodeServerFrame(10,message.data));continue;
+          if(message.type==='ping'||message.type==='pong') {
+            // Both solicited and unsolicited control frames consume parsing and
+            // scheduling work. Apply a shared quota in addition to ping pacing.
+            const now=Date.now();
+            if(now-controlWindowStart>=controlWindowMs){controlWindowStart=now;controls=0;}
+            if(++controls>maxControlFramesPerWindow){shutdown(1008,'control frame flood');return;}
+            if(message.type==='ping') {
+              if(now-lastPing>=1000){lastPing=now;pings=0;}
+              if(++pings>16){shutdown(1008,'ping flood');return;}
+              if(!write(encodeServerFrame(10,message.data)))return;
+            }
+            continue;
           }
-          if(message.type==='pong')continue;
           const now=Date.now();
           if(now-windowStart>=messageWindowMs){windowStart=now;messages=0;}
           if(++messages>maxMessagesPerWindow){shutdown(1008,'message rate exceeded');return;}

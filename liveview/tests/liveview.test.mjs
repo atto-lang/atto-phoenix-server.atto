@@ -41,7 +41,7 @@ test('large render refused without changing state or revision',()=>{const live=n
 test('client sends first join then one in-flight event; ack unlocks next',()=>{
   const root=makeRoot();const sent=[];let socket;
   class Socket{constructor(url,protocol){this.url=url;this.protocol=protocol;this.readyState=0;this.listeners={};socket=this;}addEventListener(k,fn){this.listeners[k]=fn;}send(data){sent.push(JSON.parse(data));}close(){this.readyState=3;}emit(k,data){this.listeners[k]({data});}}
-  const client=new OresLiveView({root,url:'wss://example.test/live',sessionId:'s1',csrfToken:'secure-token-123456',webSocket:Socket,randomUUID:(()=>{let n=0;return()=>`client-${++n}`;})()});
+  const client=new OresLiveView({root,url:'wss://example.test/live',sessionId:'s1',csrfToken:'secure-token-123456',webSocket:Socket,randomUUID:(()=>{let n=0;return()=>`${(++n).toString(16).padStart(8,"0")}-cafe`;})()});
   client.start();assert.equal(socket.protocol,'ores-liveview-v1');socket.readyState=1;socket.emit('open');assert.equal(sent[0].resume_rev,-1);
   socket.emit('message',JSON.stringify({v:1,type:'snapshot',rev:0,children:initial}));socket.emit('message',JSON.stringify({v:1,type:'ready',rev:0}));
   client.dispatch('increment');client.dispatch('increment');assert.equal(sent.filter(m=>m.type==='event').length,1);
