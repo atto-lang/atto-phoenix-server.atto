@@ -166,6 +166,67 @@ class OracleTests(unittest.TestCase):
             probe.verify_concurrent(workers=-1)
 
 
+    def test_disconnect_churn_closes_each_socket_and_recovers(self):
+        messages = []
+        class TrackedSocket:
+            def __enter__(self):
+                return self
+            def __exit__(self, typ, value, tb):
+                messages.append(b"CLOSED")
+            def settimeout(self, timeout):
+                pass
+            def sendall(self, data):
+                messages.append(data)
+
+        with mock.patch.object(probe.socket, "create_connection", side_effect=lambda *a, **k: TrackedSocket()) as opened:
+            with mock.patch.object(probe, "exchange", return_value=(200, b"hello from oreslang")) as req:
+                probe.verify_disconnect_churn(waves=2, sockets_per_wave=4)
+        self.assertEqual(opened.call_count, 8)
+        self.assertEqual(req.call_count, 2)
+        self.assertEqual(messages.count(b"CLOSED"), 8)
+        payloads = [m for m in messages if m != b"CLOSED"]
+        self.assertEqual(sum(m.startswith(b"GET /hello") for m in payloads), 4)
+        self.assertEqual(sum(m.startswith(b"POST /echo") for m in payloads), 4)
+        self.assertTrue(all(b"Content-Length: 32" in m for m in payloads if m.startswith(b"POST")))
+
+    def test_disconnect_churn_rejects_lost_recovery(self):
+        class ClosedSocket:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return None
+            def settimeout(self, timeout):
+                pass
+            def sendall(self, data):
+                pass
+
+        with mock.patch.object(probe.socket, "create_connection", return_value=ClosedSocket()):
+            with mock.patch.object(probe, "exchange", return_value=(503, b"busy")):
+                with self.assertRaises(AssertionError):
+                    probe.verify_disconnect_churn(waves=1, sockets_per_wave=2)
+
+    def test_disconnect_churn_rejects_invalid_bounds(self):
+        for kwargs in ({"waves": 0}, {"waves": 9}, {"sockets_per_wave": 0},
+                       {"sockets_per_wave": 33}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(AssertionError):
+                probe.verify_disconnect_churn(**kwargs)
+
+    def test_disconnect_churn_write_failure_cannot_pass(self):
+        class FailingSocket:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return None
+            def settimeout(self, timeout):
+                pass
+            def sendall(self, data):
+                raise BrokenPipeError("simulated client write failure")
+
+        with mock.patch.object(probe.socket, "create_connection", return_value=FailingSocket()):
+            with self.assertRaises(BrokenPipeError):
+                probe.verify_disconnect_churn(waves=1, sockets_per_wave=1)
+
+
 if __name__ == "__main__":
     result = unittest.main(verbosity=1, exit=False).result
     if result.wasSuccessful():
