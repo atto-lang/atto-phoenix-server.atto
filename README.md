@@ -29,3 +29,12 @@ TLS, HTTP/2, WebSockets, templates, JSON codecs, signed cookies, database access
 Graceful signal-driven draining and hot-generation routing remain later gates. The underlying HTTP runtime exposes bounded server shutdown, but this source candidate does not yet expose an application control path for it.
 
 Tracked by [issue #3](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/issues/3).
+
+## Additional hardening tests
+
+The source candidate includes `http_headers` and `http_routes`
+native regression clients for HTTP parser admission and exact route
+matching. Host-only CI now adds `ci/test-runner-preflight.sh` and
+more fixture-index adversaries. These are intentionally **not** claims
+of Java/Graal native guest execution. The reviewed exact-head runner
+gate and protected-environment approval remain prerequisites.
