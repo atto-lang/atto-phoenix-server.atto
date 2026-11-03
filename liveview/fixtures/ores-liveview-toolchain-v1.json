@@ -33,7 +33,8 @@
     "guest_compiler_execution_required": true,
     "retirement_fences_coalesced_frames": true,
     "retirement_suppresses_actor_output": true,
-    "exactly_once_detach_on_retirement": true
+    "exactly_once_detach_on_retirement": true,
+    "serial_actor_operations_nonreentrant": true
   },
   "toolchains": {
     "java": {

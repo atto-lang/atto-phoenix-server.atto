@@ -11,7 +11,7 @@ const receipt=(backend='java')=>({backend,source_sha:'a'.repeat(40),source_tree_
   observed_wire_cases:41,event_fingerprint_fixture_blob_sha:EVENT_FINGERPRINT_BLOB_SHA,
   observed_fingerprint_cases:8,guest_compiled:true,guest_executed:true,actual_socket_io:true,
   actor_owned_state:true,liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true,
-  coalesced_retirement_e2e:true,retired_output_suppression_e2e:true,exactly_once_detach_e2e:true});
+  coalesced_retirement_e2e:true,retired_output_suppression_e2e:true,exactly_once_detach_e2e:true,serial_nonreentrant_actor_e2e:true});
 test('all five repository backends have an explicit shared application contract',()=>{
   const p=verifyToolchainContract(registry);assert.equal(p.structural_contract_valid,true);
   assert.equal(p.backend_parity_certified,false);assert.equal(p.guest_execution_authenticated,false);
@@ -115,6 +115,23 @@ for(const backend of TOOLCHAINS) {
         const c=receipt(backend);c[field]=invalid;
         bad(()=>checkGuestEvidenceShape(c));
       }
+    }
+    assert.equal(checkGuestEvidenceShape(receipt(backend)).certified,false);
+  });
+}
+
+// Source-only structural assertions: native guest evidence still requires authenticated CI.
+test('nonreentrant actor sessions are mandatory in the shared application contract',()=>{
+  for(const invalid of [undefined,false,null,'true',1]) {
+    const c=clone();c.shared_application_contract.serial_actor_operations_nonreentrant=invalid;
+    bad(()=>verifyToolchainContract(c));
+  }
+});
+for(const backend of TOOLCHAINS) {
+  test(`${backend}: native guest evidence must execute actor reentrancy adversaries`,()=>{
+    for(const invalid of [undefined,false,null,'true',1]) {
+      const c=receipt(backend);c.serial_nonreentrant_actor_e2e=invalid;
+      bad(()=>checkGuestEvidenceShape(c));
     }
     assert.equal(checkGuestEvidenceShape(receipt(backend)).certified,false);
   });

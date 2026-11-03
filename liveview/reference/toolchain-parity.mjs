@@ -56,7 +56,8 @@ export function verifyToolchainContract(registry) {
     expected.guest_compiler_execution_required===true&&
     expected.retirement_fences_coalesced_frames===true&&
     expected.retirement_suppresses_actor_output===true&&
-    expected.exactly_once_detach_on_retirement===true,'weakened guest ownership semantics');
+    expected.exactly_once_detach_on_retirement===true&&
+    expected.serial_actor_operations_nonreentrant===true,'weakened guest ownership semantics');
   for (const toolchain of TOOLCHAINS) {
     const candidate=registry.toolchains[toolchain];
     ensure(candidate && candidate.repo===`oreslang-source.${toolchain}`,'unexpected backend identity');
@@ -88,7 +89,8 @@ export function checkGuestEvidenceShape(receipt) {
     'host codec is not guest LiveView');
   ensure(receipt.liveview_app_protocol==='ores-liveview-v1' && receipt.reconnect_e2e===true &&
     receipt.supervisor_e2e===true && receipt.coalesced_retirement_e2e===true &&
-    receipt.retired_output_suppression_e2e===true && receipt.exactly_once_detach_e2e===true,
+    receipt.retired_output_suppression_e2e===true && receipt.exactly_once_detach_e2e===true &&
+    receipt.serial_nonreentrant_actor_e2e===true,
     'incomplete application protocol checks');
   return {backend,structurally_admissible:true,authenticated:false,certified:false};
 }

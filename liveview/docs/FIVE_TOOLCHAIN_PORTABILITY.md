@@ -88,3 +88,16 @@ matching Git blob or a valid receipt shape.
   Forge, Wasm worker/Wasmtime, and Windows/Linux .NET Native AOT.
 - Keep Phoenix PR #11, stacked 41-vector PR #14 and the five backend drafts
   unmerged until independent code review and native admission succeed.
+
+
+### Serial actor operation / synchronous callback non-reentrancy
+
+A LiveView session owns its state and revision. Guest implementations must
+refuse synchronous reentry through the reducer, renderer, authentication and
+subscriber callbacks before invoking nested callbacks. The operation guard
+must unwind on error (defer/finally). A subscriber may enqueue work onto an
+actor mailbox, but must not execute another session operation synchronously
+inside the original commit/broadcast. Each backend must execute a native
+`serial_nonreentrant_actor_e2e` test, including error recovery, to claim the
+shape of a complete receipt. The structural verifier cannot authenticate
+these claims or certify backend parity.

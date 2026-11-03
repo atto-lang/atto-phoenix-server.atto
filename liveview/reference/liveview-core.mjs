@@ -98,6 +98,8 @@ export class LiveViewSession {
     this.state=freeze(initialState); this.render=render; this.reduce=reduce;
     this.authorize=authorize; this.maxHistory=maxHistory; this.maxDedup=maxDedup; this.maxSubscribers=maxSubscribers;
     this.revision=0; this.history=[]; this.seen=new Map(); this.subscribers=new Map();
+    // A serial actor never permits callbacks to reenter its own session.
+    this.receiving=false;
     this.tree=freeze(render(freeze(this.state)));validateTree(this.tree,origin,[rootId]);
     this._packet(this._snapshot()); // initial state must fit a complete wire snapshot
     // The root ID used by diffView is the DOM mount ID. Callers may configure it.
@@ -122,6 +124,12 @@ export class LiveViewSession {
   _ready() { return {v:VERSION,type:'ready',rev:this.revision}; }
   _packet(frame) { assert(new TextEncoder().encode(JSON.stringify(frame)).length<=MAX_FRAME,'outgoing frame too large'); return frame; }
   receive(frame,transport) {
+    assert(!this.receiving,'reentrant session operation');
+    this.receiving=true;
+    try {return this._receive(frame,transport);}
+    finally {this.receiving=false;}
+  }
+  _receive(frame,transport) {
     assert(frame && typeof frame==='object' && !Array.isArray(frame) && frame.v===VERSION,'unsupported protocol');
     assert(new TextEncoder().encode(JSON.stringify(frame)).length<=MAX_FRAME,'incoming frame too large');
     // Auth must be bound to the actual HTTP-upgraded connection, not user-provided envelope fields.
