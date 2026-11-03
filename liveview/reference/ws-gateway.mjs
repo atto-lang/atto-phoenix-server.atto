@@ -63,7 +63,9 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
     try {principal=authenticate(req);if(!principal || typeof principal.id!=='string' || principal.id.length<1 || principal.id.length>256)throw Error('unauthorized principal');session=getSession(principal);if(!session || typeof session.receive!=='function'||typeof session.detach!=='function')throw Error('session missing');}
     catch {reject(socket,403);return;}
     const connectionId=randomUUID();
-    const transport={connectionId,origin:approval.origin,user:principal.id};
+    // The connection's authenticated authority is immutable even inside actor callbacks.
+    // A reducer cannot rewrite user, origin, or connectionId for later events.
+    const transport=Object.freeze({connectionId,origin:approval.origin,user:principal.id});
     const parser=new ClientFrameParser({maxMessage:WS_MAX_MESSAGE,maxMessageAgeMs});
     let finished=false,pings=0,lastPing=0,controls=0,controlWindowStart=Date.now(),messages=0,windowStart=Date.now();
     // The parser checks elapsed time on feed(), but a silent peer does not
