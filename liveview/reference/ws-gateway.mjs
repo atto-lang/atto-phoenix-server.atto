@@ -125,6 +125,9 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
       if(finished)return;
       try {
         for(const message of parser.feed(data)) {
+          // An actor callback may synchronously retire the transport;
+          // no remaining frame in this TCP read may enter the actor.
+          if(finished)return;
           if(message.type==='close'){shutdown(1000);return;}
           if(message.type==='ping'||message.type==='pong') {
             // Both solicited and unsolicited control frames consume parsing and
@@ -145,7 +148,13 @@ export function installReferenceGateway(server,{origins,hosts,authenticate,getSe
           let frame;
           try{frame=JSON.parse(message.data);}catch{shutdown(1007,'invalid JSON');return;}
           const replies=session.receive(frame,transport);
-          for(const reply of replies){const bytes=Buffer.from(JSON.stringify(reply));if(bytes.length>WS_MAX_MESSAGE){shutdown(1009,'frame too large');return;}if(!write(encodeServerFrame(1,bytes)))return;}
+          if(finished)return; // retired actor output must not be inspected
+          for(const reply of replies){
+            if(finished)return;
+            const bytes=Buffer.from(JSON.stringify(reply));
+            if(bytes.length>WS_MAX_MESSAGE){shutdown(1009,'frame too large');return;}
+            if(!write(encodeServerFrame(1,bytes)))return;
+          }
         }
         syncAssemblyTimer();
       }catch(error){shutdown(error instanceof WireError?error.closeCode:1008,'rejected');}

@@ -10,7 +10,8 @@ const receipt=(backend='java')=>({backend,source_sha:'a'.repeat(40),source_tree_
   run_id:1,job_id:2,runner_id:3,executed_steps:4,wire_fixture_blob_sha:WIRE_BLOB_SHA,
   observed_wire_cases:41,event_fingerprint_fixture_blob_sha:EVENT_FINGERPRINT_BLOB_SHA,
   observed_fingerprint_cases:8,guest_compiled:true,guest_executed:true,actual_socket_io:true,
-  actor_owned_state:true,liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true});
+  actor_owned_state:true,liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true,
+  coalesced_retirement_e2e:true,retired_output_suppression_e2e:true,exactly_once_detach_e2e:true});
 test('all five repository backends have an explicit shared application contract',()=>{
   const p=verifyToolchainContract(registry);assert.equal(p.structural_contract_valid,true);
   assert.equal(p.backend_parity_certified,false);assert.equal(p.guest_execution_authenticated,false);
@@ -96,3 +97,25 @@ test('toolchain inventory requires application fingerprint fixture pinned by exa
   const c=clone();c.event_fingerprint_fixture_blob_sha=null;bad(()=>verifyToolchainContract(c));
   const mismatch=clone();mismatch.event_fingerprint_case_count=9;bad(()=>verifyToolchainContract(mismatch));
 });
+
+// A synthetic receipt remains unauthenticated, and every backend has to prove
+// the same terminal connection retirement semantics with a compiled guest.
+test('retirement invariants are mandatory in the portable application contract',()=>{
+  for(const field of ['retirement_fences_coalesced_frames','retirement_suppresses_actor_output','exactly_once_detach_on_retirement']) {
+    for(const invalid of [undefined,false,null,'true']){
+      const c=clone();c.shared_application_contract[field]=invalid;
+      bad(()=>verifyToolchainContract(c));
+    }
+  }
+});
+for(const backend of TOOLCHAINS) {
+  test(backend+': guest retirement evidence cannot be omitted or forged',()=>{
+    for(const field of ['coalesced_retirement_e2e','retired_output_suppression_e2e','exactly_once_detach_e2e']) {
+      for(const invalid of [undefined,false,0,'true']) {
+        const c=receipt(backend);c[field]=invalid;
+        bad(()=>checkGuestEvidenceShape(c));
+      }
+    }
+    assert.equal(checkGuestEvidenceShape(receipt(backend)).certified,false);
+  });
+}

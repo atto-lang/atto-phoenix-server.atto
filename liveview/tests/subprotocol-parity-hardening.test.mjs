@@ -49,7 +49,8 @@ test('even complete-looking receipts remain unauthenticated structural assertion
     wire_fixture_blob_sha:WIRE_BLOB_SHA,observed_wire_cases:41,
     event_fingerprint_fixture_blob_sha:EVENT_FINGERPRINT_BLOB_SHA,observed_fingerprint_cases:8,
     guest_compiled:true,guest_executed:true,actual_socket_io:true,actor_owned_state:true,
-    liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true};
+    liveview_app_protocol:'ores-liveview-v1',reconnect_e2e:true,supervisor_e2e:true,
+    coalesced_retirement_e2e:true,retired_output_suppression_e2e:true,exactly_once_detach_e2e:true};
   assert.deepEqual([checkGuestEvidenceShape(receipt).authenticated,
     checkGuestEvidenceShape(receipt).certified],[false,false]);
 });

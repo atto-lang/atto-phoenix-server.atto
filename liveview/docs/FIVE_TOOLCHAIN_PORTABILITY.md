@@ -38,6 +38,20 @@ numerical "five-of-five" count. Guest application semantics should be
 portable; networking capability and deployment topology remain target-specific.
 Unsupported transports must reject clearly before guest execution.
 
+## Connection-retirement linearization (all five backends)
+
+A single transport read may contain multiple complete WebSocket messages.
+If an actor callback revokes or closes its transport during processing of one,
+later decoded messages from that read **must not** enter the actor, and retired
+actor output must neither be enumerated nor transmitted. Detachment is
+idempotent even when local shutdown, EOF and error paths race.
+
+The same capability fencing applies to Java NIO, LLVM and Forge reactors,
+Kestrel/.NET and explicit Wasm host adapters. A compiled-guest receipt must
+include `coalesced_retirement_e2e`, `retired_output_suppression_e2e`,
+and `exactly_once_detach_e2e`. These flags are only structural assertions:
+they never authenticate a build or turn a host parser into a guest implementation.
+
 ## Dual conformance planes
 
 1. **Transport:** the immutable 41-vector RFC6455 registry has Git blob SHA
