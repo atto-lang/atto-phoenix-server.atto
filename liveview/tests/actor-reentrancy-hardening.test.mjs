@@ -82,3 +82,22 @@ test('outer operation unlocks after invalid frame and subsequent valid join/even
   assert.equal(session.receive({...event(),base_rev:99},transport)[0].type,'event_rejected');
   assert.equal(session.receive(event(),transport)[1].rev,1);
 });
+
+
+test('callback cannot disarm the actor ownership gate by changing a public-looking property',()=>{
+  let session,attempt=true;
+  session=make({reduce:state=>{
+    if(attempt) {
+      attempt=false;
+      session.receiving=false; // This must not control the private guard.
+      session.receive(event('abcdef12'),transport);
+    }
+    return {count:state.count+1};
+  }});
+  joined(session);
+  assert.throws(()=>session.receive(event(),transport),/reentrant session/i);
+  assert.equal(session.revision,0);
+  assert.equal(session.state.count,0);
+  assert.equal(session.seen.size,0);
+  assert.equal(session.receive(event(),transport)[1].rev,1);
+});
