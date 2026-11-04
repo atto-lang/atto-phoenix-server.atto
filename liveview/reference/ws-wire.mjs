@@ -59,6 +59,7 @@ export class ClientFrameParser {
         fail('message assembly deadline exceeded',1008);
     };
     checkAge();
+    const arrivalTime=this.now();
     // maxBuffer is the incomplete-frame budget, not the total TCP read size.
     // Parse complete frames before admitting more bytes, so coalesced frames
     // cannot spuriously trip memory limits. Limit per-feed work independently.
@@ -148,6 +149,12 @@ export class ClientFrameParser {
       if(offset===bytes.length)break;
       if(!progress && this.pending.length>=this.maxBuffer)fail('inbound buffer budget exceeded',1009);
     }
+    // A complete message (or standalone ping/pong) can share a TCP read with
+    // the beginning of another frame. Resetting the prior message's deadline
+    // must not strand that trailing incomplete header without its own clock.
+    // Use the read's arrival time rather than refreshing it after parsing.
+    if(this.pending.length>0 && this.messageStartedAt===null)
+      this.messageStartedAt=arrivalTime;
     return messages;
   }
 }

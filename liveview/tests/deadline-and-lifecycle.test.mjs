@@ -180,3 +180,54 @@ test('gateway close cancels active assembly timers and detaches pending actor',a
     c.socket.destroy();
   }finally{await env.stop();}
 });
+
+test('coalesced complete message plus one-byte next header starts an absolute deadline',()=>{
+  let clock=100;const p=new ClientFrameParser({maxMessageAgeMs:30,now:()=>clock});
+  const next=encodeClientFrame(1,'second');
+  const frames=p.feed(Buffer.concat([encodeClientFrame(1,'first'),next.subarray(0,1)]));
+  assert.deepEqual(frames,[{type:'text',data:'first'}]);
+  assert.equal(p.pending.toString('hex'),next.subarray(0,1).toString('hex'));
+  assert.equal(p.messageStartedAt,100,'partial trailing frame must arm its own deadline');
+  clock=131;
+  assert.throws(()=>p.feed(next.subarray(1)),deadlineError);
+});
+
+test('coalesced standalone heartbeat plus partial data header has a real deadline',()=>{
+  let clock=0;const p=new ClientFrameParser({maxMessageAgeMs:30,now:()=>clock});
+  const next=encodeClientFrame(1,'second');
+  assert.equal(p.feed(Buffer.concat([encodeClientFrame(9,'heartbeat'),next.subarray(0,1)]))[0].type,'ping');
+  assert.equal(p.messageStartedAt,0);
+  clock=31;assert.throws(()=>p.feed(next.subarray(1)),deadlineError);
+});
+
+test('incomplete trailing frame deadline is checked even on empty TCP feed',()=>{
+  let clock=0;const p=new ClientFrameParser({maxMessageAgeMs:30,now:()=>clock});
+  const complete=encodeClientFrame(1,'ok');
+  p.feed(Buffer.concat([complete,Buffer.from([0x81])]));
+  clock=31;assert.throws(()=>p.feed(Buffer.alloc(0)),deadlineError);
+});
+
+test('real WebSocket socket closes silent coalesced trailing header with 1008',async()=>{
+  const env=await networkEnv({maxMessageAgeMs:40,idleTimeoutMs:2000});
+  try {
+    const c=await connect(env);
+    const first=encodeClientFrame(1,JSON.stringify(join()));
+    c.send(Buffer.concat([first,Buffer.from([0x81])]));
+    assert.equal(await c.closeFrame(),1008);
+    for(let i=0;i<100&&env.gateway.connections;i++)await delay(2);
+    assert.equal(env.gateway.connections,0);
+    assert.equal(env.live.subscribers.size,0);
+    assert.equal(env.live.joined.size,0);
+    c.socket.destroy();
+  }finally{await env.stop();}
+});
+
+test('real WebSocket socket arms trailing header after a complete ping',async()=>{
+  const env=await networkEnv({maxMessageAgeMs:40,idleTimeoutMs:2000});
+  try {
+    const c=await connect(env);
+    c.send(Buffer.concat([encodeClientFrame(9,'heartbeat'),Buffer.from([0x81])]));
+    assert.equal(await c.closeFrame(),1008);
+    c.socket.destroy();
+  }finally{await env.stop();}
+});
