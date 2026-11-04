@@ -101,3 +101,14 @@ inside the original commit/broadcast. Each backend must execute a native
 `serial_nonreentrant_actor_e2e` test, including error recovery, to claim the
 shape of a complete receipt. The structural verifier cannot authenticate
 these claims or certify backend parity.
+
+### Portable rendered Unicode scalar values
+
+The LiveView render tree admits Unicode scalar values only. Unpaired UTF-16
+surrogates must be rejected in text nodes, attributes, links and patch payloads
+**before** state/replay commit or any browser DOM mutation. Valid supplementary
+characters must round-trip. Node's `JSON.stringify` escaping of an unpaired
+surrogate does not establish portable UTF-8 data. Each backend needs a compiled
+guest `render_unicode_e2e` test including rejection, rollback, socket retirement,
+second-subscriber isolation and valid round-trip. Structural receipts never
+authenticate guest execution.

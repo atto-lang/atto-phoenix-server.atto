@@ -34,7 +34,8 @@
     "retirement_fences_coalesced_frames": true,
     "retirement_suppresses_actor_output": true,
     "exactly_once_detach_on_retirement": true,
-    "serial_actor_operations_nonreentrant": true
+    "serial_actor_operations_nonreentrant": true,
+    "rendered_unicode_scalar_values_only": true
   },
   "toolchains": {
     "java": {

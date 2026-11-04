@@ -16,7 +16,21 @@ const VOID_ELEMENTS = new Set(['input','img','br','hr']);
 
 function fail(message) { throw new Error('ORES_LIVEVIEW_PROTOCOL: ' + message); }
 function assert(cond, message) { if (!cond) fail(message); }
-function boundedString(value, max=MAX_STRING) { assert(typeof value === 'string' && value.length <= max, 'invalid string'); return value; }
+function boundedString(value, max=MAX_STRING) {
+  assert(typeof value === 'string' && value.length <= max, 'invalid string');
+  // The wire contract is Unicode scalar values, not arbitrary JS UTF-16.
+  // Unpaired surrogates stringify as escapes but become replacement glyphs
+  // when inserted into the DOM or encoded by UTF-8 native backends.
+  for (let i=0;i<value.length;i++) {
+    const unit=value.charCodeAt(i);
+    if(unit>=0xD800 && unit<=0xDBFF) {
+      assert(i+1<value.length && value.charCodeAt(i+1)>=0xDC00 &&
+        value.charCodeAt(i+1)<=0xDFFF, 'malformed Unicode scalar value');
+      i++;
+    } else assert(unit<0xDC00 || unit>0xDFFF, 'malformed Unicode scalar value');
+  }
+  return value;
+}
 function validId(value) { return typeof value === 'string' && IDENT.test(value); }
 function serializableSize(value) {
   let json;
