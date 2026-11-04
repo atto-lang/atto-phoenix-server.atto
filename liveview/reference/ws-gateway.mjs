@@ -34,6 +34,9 @@ export function validateUpgrade(req,{origins,hosts,allowLoopbackCleartext=false,
   // RFC 6454 Origin must be a serialized origin, not a full URL.
   const url=new URL(h.origin);
   if(url.origin!==h.origin || url.username || url.password)fail('invalid Origin syntax');
+  // The first-party browser client requires same-origin WebSockets. Independent
+  // allowlists must not authorize cross-tenant Host/Origin combinations.
+  if(url.host!==h.host.toLowerCase())fail('Host/Origin authority mismatch');
   if(url.protocol!=='https:' && !(allowLoopbackCleartext && url.protocol==='http:' && onLoopback(req.socket)))fail('TLS required');
   if(!req.socket.encrypted && !(allowLoopbackCleartext && onLoopback(req.socket)))fail('insecure transport');
   if(!tokenList(h.connection||'').includes('upgrade') || (h.upgrade||'').toLowerCase()!=='websocket')fail('invalid Upgrade');
