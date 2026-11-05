@@ -112,13 +112,19 @@ export class LiveViewSession {
     assert(typeof connectionId==='string' && connectionId.length>0 && typeof send==='function', 'invalid subscription');
     assert(!this.subscribers.has(connectionId),'duplicate subscription');
     assert(this.subscribers.size<this.maxSubscribers,'subscriber limit exceeded');
-    this.subscribers.set(connectionId,send);
+    // Every attachment has a distinct generation, even if a callback and ID
+    // are reused. An old send failure cannot revoke a newly attached peer.
+    this.subscribers.set(connectionId,{send});
   }
   detach(connectionId) { this.joined.delete(connectionId); this.subscribers.delete(connectionId); }
   _broadcast(senderId, frame) {
-    for(const [id,send] of this.subscribers) {
-      if(id===senderId || !this.joined.has(id))continue;
-      try {send(freeze(frame));} catch {this.detach(id);}
+    // JS Map iterators are live. Snapshot admitted recipients at commit time;
+    // callbacks may attach, detach, or replace subscriptions synchronously.
+    const audience=[...this.subscribers].filter(([id])=>id!==senderId && this.joined.has(id));
+    for(const [id,entry] of audience) {
+      if(this.subscribers.get(id)!==entry || !this.joined.has(id))continue;
+      try {entry.send(freeze(frame));}
+      catch {if(this.subscribers.get(id)===entry)this.detach(id);}
     }
   }
   _snapshot() { return {v:VERSION,type:'snapshot',rev:this.revision,children:freeze(this.tree)}; }
