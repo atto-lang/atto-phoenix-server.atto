@@ -15,3 +15,5 @@
 Host-only tests, shared JSON contracts and zero-step CI cannot certify native actor or compiler execution. No unauthorized cross-organization mirroring, private runner bypass or merge without review.
 
 Native runner preflight: `EXPECTED_DEMO_SHA` and `EXPECTED_DEMO_TREE` must both be supplied by independently approved dispatch and match the *clean* application Git checkout, before and after native execution. `ci/test-native-head-gate.sh` contains 11 host-only negative scenarios; source tests alone cannot attest native execution.
+
+Echo MIME audit: canonical `text/plain` and `text/plain; charset=utf-8` only; 3 negative and 1 positive new `.atto` wire assertions, plus 6 host structural mutation tests. Compilation and execution pending. Cross-org private-source mirrors remain prohibited by platform-conformance incident #22 until independent security authorization, even when destination privacy and stepful Actions are demonstrated.

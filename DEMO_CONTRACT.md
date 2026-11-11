@@ -25,3 +25,7 @@ No public bind, TLS, HTTP/2, native guest WebSockets, Phoenix compatibility, arb
 ## Exact-head runner admission
 
 The native runner additionally requires an independently authorized `EXPECTED_DEMO_SHA` and `EXPECTED_DEMO_TREE` and a completely clean application checkout, including no staged or untracked changes. `ci/native-head-gate.sh` runs before compiler invocation and after all guest contracts. Its 11 hermetic negative cases are host-only, not native execution or proof of external approval. Neither source text nor workflow inputs may authorize their own review. Native execution requires an external, independent review gate.
+
+## Narrow echo Content-Type admission
+
+For v1, the application accepts exactly `text/plain` and `text/plain; charset=utf-8` with literal matching. Malformed, empty and unknown parameters and non-UTF8 charset claims are rejected with 415. This is intentionally a narrow profile, not a general RFC media-type parser. The `.atto` raw-wire client adds three negative cases and one positive canonical UTF-8 case. The separate host-only MIME structural gate has six negative mutations; neither source-only check nor a public CI canary proves native execution.
