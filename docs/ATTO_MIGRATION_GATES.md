@@ -13,3 +13,5 @@
 | Runner gate | PR CI structural only; private compiler needs independent reviewed exact-SHA dispatch | P0 blocked |
 
 Host-only tests, shared JSON contracts and zero-step CI cannot certify native actor or compiler execution. No unauthorized cross-organization mirroring, private runner bypass or merge without review.
+
+Native runner preflight: `EXPECTED_DEMO_SHA` and `EXPECTED_DEMO_TREE` must both be supplied by independently approved dispatch and match the *clean* application Git checkout, before and after native execution. `ci/test-native-head-gate.sh` contains 11 host-only negative scenarios; source tests alone cannot attest native execution.

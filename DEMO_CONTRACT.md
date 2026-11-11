@@ -21,3 +21,7 @@
 7. Repeat actual portable contracts with LLVM, .NET NativeAOT, Wasm and Forge before any five-backend claim.
 
 No public bind, TLS, HTTP/2, native guest WebSockets, Phoenix compatibility, arbitrary HTML rendering or hostile-code tenant sandbox is claimed. Transport validates framing; actor application logic stays in `.atto`; the supervisor retains lifecycle and admission authority. Stateful sessions need serial mailbox ownership, generation fencing, bounded slow-subscriber backpressure and cancellation.
+
+## Exact-head runner admission
+
+The native runner additionally requires an independently authorized `EXPECTED_DEMO_SHA` and `EXPECTED_DEMO_TREE` and a completely clean application checkout, including no staged or untracked changes. `ci/native-head-gate.sh` runs before compiler invocation and after all guest contracts. Its 11 hermetic negative cases are host-only, not native execution or proof of external approval. Neither source text nor workflow inputs may authorize their own review. Native execution requires an external, independent review gate.

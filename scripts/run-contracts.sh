@@ -19,15 +19,15 @@ git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 
 command -v mvn >/dev/null 2>&1 || { echo "mvn is required" >&2; exit 69; }
 command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded server teardown" >&2; exit 69; }
-# A native job must be tied to an independently reviewed immutable demo head.
-[[ -n "${EXPECTED_DEMO_SHA:-}" ]] || {
-  echo "APPROVAL_REQUIRED: EXPECTED_DEMO_SHA must identify the reviewed demo head" >&2; exit 64;
-}
+# The exact reviewed app SHA/tree and clean working tree must be verified
+# before compiler invocation, port admission or any guest execution.
+bash "$root/ci/native-head-gate.sh" "$root"
 bash "$root/ci/source-policy.sh"
 bash "$root/ci/check-native-abi.sh"
 bash "$root/ci/check-fixtures.sh"
 
 echo "compiler_ref=$source_ref"
+echo "compiler_tree=$(git -C "$compiler" rev-parse 'HEAD^{tree}')"
 echo "demo_ref=$(git -C "$root" rev-parse HEAD 2>/dev/null || printf 'unversioned')"
 mvn -B -ntp -q -e -f "$compiler/pom.xml" -DskipTests compile
 
@@ -121,4 +121,6 @@ done < "$root/ci/contracts.tsv"
 kill -0 "$server_pid"
 grep -Fq 'AttoLang Phoenix-style demo listening on loopback:8082' "$server_log"
 [[ "$total" -gt 0 && "$passed" -eq "$total" ]]
+# Detect an application checkout modified during the test, too.
+bash "$root/ci/native-head-gate.sh" "$root"
 echo "$passed/$total Phoenix-style HTTP contracts passed"
