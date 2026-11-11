@@ -73,8 +73,33 @@ check_ok rest-legacy
 printf 'new\n' > "$test_repo/scripts/new_tool.py"
 git -C "$test_repo" add .
 check_bad rest-legacy
+
+# Reset *all* prior negatives before testing the canonical extension guard.
+# Otherwise scripts/new_tool.py would make the legacy-source check pass
+# for the wrong reason (strict mode rejects the unrelated Python file).
+git -C "$test_repo" rm -q -f scripts/new_tool.py scripts/benchmark.py
+check_ok
 printf 'invalid\n' > "$test_repo/src/legacy.ores"
 git -C "$test_repo" add src/legacy.ores
-check_bad
+# Require the *specific* reason; generic failure is not a proof of .ores denial.
+legacy_error="$(SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE=strict bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted legacy .ores source' >&2; exit 1;
+}
+[[ "$legacy_error" == *'canonical AttoLang source must use .atto'* ]] || {
+  echo "TEST_FAILURE: legacy source rejection had wrong reason: $legacy_error" >&2; exit 1;
+}
 git -C "$test_repo" rm -q -f src/legacy.ores
-printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS legacy_source_denied=true\n'
+check_ok
+
+# Extension case is also fail-closed even when the inventory gate is omitted.
+printf 'invalid\n' > "$test_repo/src/uppercase.ATTO"
+git -C "$test_repo" add src/uppercase.ATTO
+case_error="$(SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE=strict bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted uppercase .ATTO source' >&2; exit 1;
+}
+[[ "$case_error" == *'noncanonical extension case'* ]] || {
+  echo "TEST_FAILURE: uppercase extension had wrong reason: $case_error" >&2; exit 1;
+}
+git -C "$test_repo" rm -q -f src/uppercase.ATTO
+check_ok
+printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS isolated_legacy_and_case_rejections=true\n'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fail-closed tracked-source policy; host-only, no Oreslang guest execution.
+# Fail-closed tracked-source policy; host-only, no AttoLang guest execution.
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 root="${SOURCE_POLICY_ROOT:-$repo_root}"
@@ -29,6 +29,9 @@ while IFS= read -r -d '' path; do
   fi
   case "${path,,}" in
     *.ores) printf 'POLICY_FAILURE: canonical AttoLang source must use .atto: %s\n' "$path" >&2; exit 2 ;;
+    *.atto)
+      [[ "$path" == *.atto ]] || { echo "POLICY_FAILURE: noncanonical extension case: $path" >&2; exit 2; }
+      ;;
   esac
   allowed=0
   if [[ "$mode" == rest-legacy ]]; then
@@ -59,4 +62,4 @@ printf 'SOURCE_POLICY_STRUCTURAL_PASS tracked_files=%s mode=%s\n' "$count" "$mod
 if [[ "$mode" == rest-legacy ]]; then
   echo 'LEGACY_PYTHON_NONCOMPLIANT: complete Rust replacement remains required'
 fi
-echo 'NOT_EXECUTED: this gate did not invoke an Oreslang compiler or guest'
+echo 'NOT_EXECUTED: this gate did not invoke an AttoLang compiler or guest'
