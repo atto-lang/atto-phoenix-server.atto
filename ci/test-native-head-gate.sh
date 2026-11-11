@@ -101,6 +101,11 @@ git -C "$repo" commit -qm 'indexed gitlink'
 head="$(git -C "$repo" rev-parse HEAD)"
 tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
 check_bad "$head" "$tree"
+git -C "$repo" update-index --force-remove external
+git -C "$repo" commit -qm 'remove gitlink'
+head="$(git -C "$repo" rev-parse HEAD)"
+tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
+check_ok
 
 # Simulate failures of Git inventory and status commands. Empty stdout from
 # a failed command must never be interpreted as a clean working tree.
@@ -115,11 +120,18 @@ esac
 exec "$real_git" "\$@"
 MOCK
   chmod 700 "$mock_dir/git"
-  if PATH="$mock_dir:$PATH" EXPECTED_DEMO_SHA="$head" EXPECTED_DEMO_TREE="$tree" \
-    bash "$root/ci/native-head-gate.sh" "$repo" > /dev/null 2>&1; then
+  if output="$(PATH="$mock_dir:$PATH" EXPECTED_DEMO_SHA="$head" EXPECTED_DEMO_TREE="$tree" \
+    bash "$root/ci/native-head-gate.sh" "$repo" 2>&1)"; then
     echo "NATIVE_HEAD_TEST_FAILURE: admitted failed Git $broken command" >&2
     exit 1
   fi
+  case "$broken" in
+    ls-files) expected_error="cannot list indexed file modes" ;;
+    status) expected_error="cannot establish Git checkout cleanliness" ;;
+  esac
+  [[ "$output" == *"$expected_error"* ]] || {
+    echo "NATIVE_HEAD_TEST_FAILURE: wrong Git error: $output" >&2; exit 1;
+  }
   count=$((count+1))
 done
 rm -rf -- "$mock_dir"
