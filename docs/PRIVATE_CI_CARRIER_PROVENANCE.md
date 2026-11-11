@@ -29,3 +29,7 @@ Required before exporting: document independent authorization by a source-org se
 ## Verified trust boundary
 
 Alternative minutes/runner admission: **PASS (source-free only)**. Source-code export authorization: **BLOCKED pending independent incident clearance**. Exact source-tree mirror: **NOT PERFORMED**. Native AttoLang execution: **NOT EXECUTED**. Keep PR #20 in draft and do not merge from this carrier receipt.
+
+## Byte-identical execution gate (stacked on PR #21)
+
+The next security layer compares the reviewed full Git tree to every staged Git index entry (path, mode, blob ID, stage=0) and independently hashes the raw bytes of all tracked files with `git hash-object --no-filters`. It fails closed if `ls-tree`, `hash-object`, sort, or comparison fails. This closes the gap where `git status` may be misleading under fsmonitor/index metadata races or checkout filters. The regression suite adds four negative mutations (lying status, index-vs-HEAD divergence, Git tree query refusal, raw hash refusal) and two accepted unusual-filename cases. All proof remains host-only, not compiled AttoLang guest behavior. Independent source-export approval is still necessary before any cross-org mirror.
