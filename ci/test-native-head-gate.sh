@@ -101,4 +101,26 @@ git -C "$repo" commit -qm 'indexed gitlink'
 head="$(git -C "$repo" rev-parse HEAD)"
 tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
 check_bad "$head" "$tree"
+
+# Simulate failures of Git inventory and status commands. Empty stdout from
+# a failed command must never be interpreted as a clean working tree.
+mock_dir="$(mktemp -d)"
+real_git="$(command -v git)"
+for broken in 'ls-files' 'status'; do
+  cat > "$mock_dir/git" <<MOCK
+#!/usr/bin/env bash
+case " \$* " in
+  *' $broken '*) exit 86 ;;
+esac
+exec "$real_git" "\$@"
+MOCK
+  chmod 700 "$mock_dir/git"
+  if PATH="$mock_dir:$PATH" EXPECTED_DEMO_SHA="$head" EXPECTED_DEMO_TREE="$tree" \
+    bash "$root/ci/native-head-gate.sh" "$repo" > /dev/null 2>&1; then
+    echo "NATIVE_HEAD_TEST_FAILURE: admitted failed Git $broken command" >&2
+    exit 1
+  fi
+  count=$((count+1))
+done
+rm -rf -- "$mock_dir"
 printf 'NATIVE_HEAD_NEGATIVE_TESTS_PASS scenarios=%s\n' "$count"
