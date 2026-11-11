@@ -10,7 +10,7 @@ src="${1:-$root/src/main.atto}"
 require_exact_line() {
   local expected="$1"
   local count
-  count="$(grep -Fc -- "$expected" "$src" || true)"
+  count="$(grep -Fxc -- "$expected" "$src" || true)"
   [[ "$count" -eq 1 ]] || {
     echo "NATIVE_ABI_STRUCTURAL_FAILURE: expected exactly one $expected; found $count" >&2
     exit 2

@@ -22,6 +22,9 @@ cp "$root/src/main.atto" "$src"
 sed -i 's/handler.dispatch(rt mut borrow exchange);/handler.dispatch(rt take exchange);/' "$src"
 check_bad
 cp "$root/src/main.atto" "$src"
+sed -i 's/^    handler\.dispatch(rt mut borrow exchange);/    \/\/ handler.dispatch(rt mut borrow exchange);/' "$src"
+check_bad
+cp "$root/src/main.atto" "$src"
 sed -i 's/http.claim(mail.value)/http.claim("fabricated")/' "$src"
 check_bad
 cp "$root/src/main.atto" "$src"
@@ -36,4 +39,4 @@ if bash "$root/ci/check-native-abi.sh" "$tmp/alias.atto" >/dev/null 2>&1; then
   echo 'NATIVE_ABI_TEST_FAILURE: symlink incorrectly admitted' >&2; exit 1
 fi
 check_ok
-echo 'NATIVE_ABI_NEGATIVE_TESTS_PASS scenarios=7'
+echo 'NATIVE_ABI_NEGATIVE_TESTS_PASS scenarios=8'
