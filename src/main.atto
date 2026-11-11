@@ -51,7 +51,7 @@ pub async routine main(): int {
   stdio.println("AttoLang Phoenix-style demo listening on loopback:8082");
   loop {
     val exchange = await server.accept();
-    handler.dispatch(exchange);
+    handler.dispatch(rt mut borrow exchange);
   }
   return 0;
 }

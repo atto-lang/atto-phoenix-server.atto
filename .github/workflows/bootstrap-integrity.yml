@@ -36,6 +36,8 @@ jobs:
         run: |
           set -euo pipefail
           for script in ci/*.sh scripts/run-contracts.sh; do bash -n "$script"; done
+          bash ci/check-native-abi.sh
+          bash ci/test-native-abi.sh
           bash ci/check-fixtures.sh
           bash ci/test-fixtures.sh
           bash ci/test-source-policy.sh

@@ -5,7 +5,7 @@
 | Canonical sources | `src/main.atto`, `tests/http_{health,negative,success}.atto` | Authored; not compiled |
 | Java/GraalVM source pin | `6d8eb70048eafc9a84c5aebe9c1bb06104f16e76` | Pinned; not executed |
 | Legacy extensions | Both source policies reject tracked `.ores`; inventory rejects misplaced/case-variant `.atto` | Structural tests pending hosted execution |
-| Actor and I/O semantics | Isolated pooled handler, `eq`/`neq`, `await http.get_text`, `await network.connect` | Native compile/runtime pending |
+| Actor and I/O semantics | Isolated pooled handler using `rt mut borrow exchange`, `eq`/`neq`, unsuffixed awaitable I/O | Native compile/runtime pending |
 | Guest routes | Health, hello, echo; negative status contracts | Loopback native guest pending |
 | Transport abuse | Ambiguous framing, body deadline, overload, drain | Not yet app-certified |
 | LiveView/WebSocket | Separate drafted host reference and `.atto` target | Not native-verified |

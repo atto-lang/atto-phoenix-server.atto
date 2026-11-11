@@ -24,6 +24,7 @@ command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded serv
   echo "APPROVAL_REQUIRED: EXPECTED_DEMO_SHA must identify the reviewed demo head" >&2; exit 64;
 }
 bash "$root/ci/source-policy.sh"
+bash "$root/ci/check-native-abi.sh"
 bash "$root/ci/check-fixtures.sh"
 
 echo "compiler_ref=$source_ref"

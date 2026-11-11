@@ -8,7 +8,7 @@ The repository's `main` remains a bootstrap while HTTP PR #2 and the LiveView/We
 
 ## HTTP application
 
-- `src/main.atto`: an isolated `RequestHandler` actor receives single-use claimed request-exchange tokens. The lower-level HTTP host adapter owns framing and socket I/O.
+- `src/main.atto`: an isolated `RequestHandler` actor receives single-use claimed request-exchange tokens. The lower-level HTTP host adapter owns framing and socket I/O. The supervisor dispatches the exchange with `rt mut borrow exchange` (matching the pinned Java compiler's documented native HTTP handler ABI).
 - `GET /healthz` returns 200 `ok`; `GET /hello` returns 200 `hello from attolang`; `POST /echo` echoes only `text/plain`.
 - Wrong methods return 405, missing routes 404, and unsupported echo media types 415.
 - Fixed loopback-only `127.0.0.1:8082`, 64 active request admissions, 16 pooled request actors, 16 KiB request body limit, 5s request deadline.
@@ -17,7 +17,7 @@ The repository's `main` remains a bootstrap while HTTP PR #2 and the LiveView/We
 
 ## Validate and execute
 
-Unprivileged GitHub-hosted CI checks source inventory, legacy extension rejection, Git-index symlinks, exact HEAD, and adversarial fixture policy. **It never compiles or executes AttoLang guests.**
+Unprivileged GitHub-hosted CI checks source inventory, native HTTP mutable-borrow dispatch, legacy extension rejection, Git-index symlinks, exact HEAD, and adversarial negative mutations. **It never compiles or executes AttoLang guests.**
 
 On a separately authorized isolated runner with a clean exact checkout of the pinned Java backend:
 

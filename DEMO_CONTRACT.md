@@ -7,7 +7,7 @@
 - Loopback-only `127.0.0.1:8082`, 64 active HTTP admissions, 16 pooled isolated actors, 16 KiB body cap, 5s per-request deadline.
 - `GET /healthz` -> 200 `ok`; `GET /hello` -> 200 `hello from attolang`; `POST /echo` returns the exact plain-text request body.
 - Unknown route 404, wrong method 405, unsupported echo media type 415.
-- Single-use `http.claim` actor-bound token; no guest socket, reflection, process or unrestricted filesystem authority.
+- Single-use `http.claim` actor-bound token; supervisor must dispatch with `rt mut borrow exchange` as in pinned backend native HTTP tests. no guest socket, reflection, process or unrestricted filesystem authority.
 - `eq` / `neq` canonical comparison operators and unsuffixed awaitable I/O APIs.
 
 ## Required executed evidence before promotion
