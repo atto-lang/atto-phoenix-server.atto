@@ -19,6 +19,11 @@ git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 
 command -v mvn >/dev/null 2>&1 || { echo "mvn is required" >&2; exit 69; }
 command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded server teardown" >&2; exit 69; }
+# A native job must be tied to an independently reviewed immutable demo head.
+[[ -n "${EXPECTED_DEMO_SHA:-}" ]] || {
+  echo "APPROVAL_REQUIRED: EXPECTED_DEMO_SHA must identify the reviewed demo head" >&2; exit 64;
+}
+bash "$root/ci/source-policy.sh"
 bash "$root/ci/check-fixtures.sh"
 
 echo "compiler_ref=$source_ref"

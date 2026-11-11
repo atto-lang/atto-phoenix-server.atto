@@ -11,6 +11,19 @@ pub async routine main(): int {
     return 1;
   fi
 
+  // Health endpoint must reject state-changing methods, not only accept GET.
+  val health_wrong = await network.connect("127.0.0.1", 8082);
+  await health_wrong.write_text(
+    "POST /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+  );
+  val health_wrong_status = await health_wrong.read_line();
+  await health_wrong.close();
+  if health_wrong_status.is_none() |
+    !health_wrong_status.unwrap().starts_with("HTTP/1.1 405"); then
+    stdio.println("FAIL /healthz method gate");
+    return 1;
+  fi
+
   val missing = await network.connect("127.0.0.1", 8082);
   await missing.write_text(
     "GET /missing HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"

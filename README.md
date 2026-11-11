@@ -22,13 +22,14 @@ Unprivileged GitHub-hosted CI checks source inventory, legacy extension rejectio
 On a separately authorized isolated runner with a clean exact checkout of the pinned Java backend:
 
 ```bash
+export EXPECTED_DEMO_SHA="$(git rev-parse HEAD)"  # Must match independently reviewed SHA
 export ATTOLANG_SOURCE_DIR=/absolute/path/to/trusted/oreslang-source.java
 bash ci/check-fixtures.sh
 bash ci/test-fixtures.sh
 bash scripts/run-contracts.sh
 ```
 
-The runner requires JDK 25, Maven, `setsid`, `timeout`, and scoped loopback network access. It compiler-checks every `.atto` file, launches the loopback actor server, runs three guest clients, compares exact outputs, verifies server survival, and terminates the process group.
+The runner requires JDK 25, Maven, `setsid`, `timeout`, and scoped loopback network access. After independently approving that exact demo SHA, it compiler-checks every `.atto` file, launches the loopback actor server, runs three guest clients, compares exact outputs, verifies server survival, and terminates the process group.
 
 **Unreviewed PR code must not run on persistent private compiler runners.** The previous PR-triggered self-hosted native job is disabled by the structural-only replacement. Native execution needs an independently reviewed exact-SHA approval dispatcher (draft [PR #7](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/pull/7)) and stepful evidence. No unauthorized cross-organization private source transfer.
 
