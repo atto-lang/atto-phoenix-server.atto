@@ -16,7 +16,29 @@ actual_head="$(git -C "$repo" rev-parse --verify HEAD)" || fail 'cannot resolve 
 actual_tree="$(git -C "$repo" rev-parse --verify 'HEAD^{tree}')" || fail 'cannot resolve demo tree'
 [[ "$actual_head" == "$expected_head" ]] || fail 'demo HEAD differs from reviewed SHA'
 [[ "$actual_tree" == "$expected_tree" ]] || fail 'demo tree differs from reviewed tree'
-[[ -z "$(git -C "$repo" status --porcelain=v1 --untracked-files=all)" ]] ||
-  fail 'demo checkout has tracked, staged or untracked changes'
+
+# Reject all symlink/gitlink index modes rather than checking only src/tests/ci.
+# A reviewed commit's tree hash does not imply its entries are safe to execute.
+while IFS= read -r -d '' entry; do
+  mode="${entry%% *}"
+  case "$mode" in
+    100644|100755) ;;
+    *) fail "non-regular indexed Git entry: mode=$mode" ;;
+  esac
+done < <(git -C "$repo" ls-files --stage -z)
+
+# Git clean/status may conceal content drift with assume-unchanged or
+# skip-worktree index flags. Fail rather than relying on that false negative.
+while IFS= read -r -d '' entry; do
+  case "${entry:0:1}" in
+    H) ;;
+    *) fail 'Git index contains skip-worktree/assume-unchanged/unmerged entry' ;;
+  esac
+done < <(git -C "$repo" ls-files -v -z)
+
+# Include ignored files. Global excludes or .git/info/exclude must not let
+# stale toolchain inputs survive a supposedly clean exact-head checkout.
+[[ -z "$(git -C "$repo" status --porcelain=v1 --ignored --untracked-files=all)" ]] ||
+  fail 'demo checkout has tracked, staged, untracked or ignored changes'
 printf 'NATIVE_HEAD_ADMITTED demo_sha=%s demo_tree=%s clean=true\n' "$actual_head" "$actual_tree"
 echo 'SOURCE_PREFLIGHT_ONLY: native AttoLang guest NOT_EXECUTED'

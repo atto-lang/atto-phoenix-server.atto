@@ -59,4 +59,46 @@ check_bad "$head" "$tree"
 head="$(git -C "$repo" rev-parse HEAD)"
 tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
 check_ok
+
+# An ignored artifact evades plain 'git status --porcelain' but must fail.
+printf 'ignored.atto\n' >> "$repo/.git/info/exclude"
+printf 'old code\n' > "$repo/ignored.atto"
+check_bad "$head" "$tree"
+rm "$repo/ignored.atto"
+check_ok
+
+# Index flags can hide malicious working-tree modifications from git status.
+git -C "$repo" update-index --assume-unchanged src/main.atto
+printf 'hidden modification\n' >> "$repo/src/main.atto"
+check_bad "$head" "$tree"
+git -C "$repo" update-index --no-assume-unchanged src/main.atto
+git -C "$repo" restore src/main.atto
+check_ok
+
+git -C "$repo" update-index --skip-worktree src/main.atto
+printf 'another hidden modification\n' >> "$repo/src/main.atto"
+check_bad "$head" "$tree"
+git -C "$repo" update-index --no-skip-worktree src/main.atto
+git -C "$repo" restore src/main.atto
+check_ok
+
+# A symlink inside a separately pinned reviewed commit remains unacceptable.
+ln -s src/main.atto "$repo/alias.atto"
+git -C "$repo" add alias.atto
+git -C "$repo" commit -qm 'indexed symlink'
+head="$(git -C "$repo" rev-parse HEAD)"
+tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
+check_bad "$head" "$tree"
+git -C "$repo" rm -q alias.atto
+git -C "$repo" commit -qm 'remove symlink'
+head="$(git -C "$repo" rev-parse HEAD)"
+tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
+check_ok
+
+# A gitlink is not part of the reviewed standalone application file set.
+git -C "$repo" update-index --add --cacheinfo "160000,$head,external"
+git -C "$repo" commit -qm 'indexed gitlink'
+head="$(git -C "$repo" rev-parse HEAD)"
+tree="$(git -C "$repo" rev-parse 'HEAD^{tree}')"
+check_bad "$head" "$tree"
 printf 'NATIVE_HEAD_NEGATIVE_TESTS_PASS scenarios=%s\n' "$count"
