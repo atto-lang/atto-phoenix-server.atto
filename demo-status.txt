@@ -1,7 +1,7 @@
 schema=1
-status=source-candidate
+status=atto-source-candidate
 execution=pending-exact-head
 network=loopback-only
 compiler-evidence=not-attested
 production-claim=false
-compiler-ref=f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa
+compiler-ref=6d8eb70048eafc9a84c5aebe9c1bb06104f16e76

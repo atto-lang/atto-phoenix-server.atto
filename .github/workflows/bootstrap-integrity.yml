@@ -1,6 +1,9 @@
-name: Exact Phoenix-style HTTP contracts
+# Unreviewed PRs must never execute private source on persistent runners.
+name: AttoLang Phoenix HTTP source integrity
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -11,52 +14,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  http-contracts:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oreslang-jdk25]
-    timeout-minutes: 25
+  structural-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Verify source-candidate metadata and inventory
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Bind checked-out source to exact head
+        shell: bash
+        env:
+          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_DEMO_SHA"
+          printf 'demo_head=%s\n' "$(git rev-parse HEAD)"
+          printf 'demo_tree=%s\n' "$(git rev-parse HEAD^{tree})"
+      - name: Source and oracle integrity (no guest execution)
         shell: bash
         run: |
           set -euo pipefail
-          expected="$(tr -d '[:space:]' < SOURCE_REF)"
-          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
-          grep -Fxq 'status=source-candidate' demo-status.txt
+          for script in ci/*.sh scripts/run-contracts.sh; do bash -n "$script"; done
+          bash ci/check-fixtures.sh
+          bash ci/test-fixtures.sh
+          bash ci/test-source-policy.sh
+          bash ci/source-policy.sh
+          test "$(cat SOURCE_REF)" = "6d8eb70048eafc9a84c5aebe9c1bb06104f16e76"
           grep -Fxq 'execution=pending-exact-head' demo-status.txt
-          grep -Fxq 'network=loopback-only' demo-status.txt
-          grep -Fxq "compiler-ref=$expected" demo-status.txt
-          actual="$RUNNER_TEMP/oreslang-files.txt"
-          find src tests -type f -name '*.ores' -print | LC_ALL=C sort > "$actual"
-          diff -u ci/oreslang-files.txt "$actual"
-          test -z "$(find src tests -type l -name '*.ores' -print -quit)"
-          awk -F '\t' '!/^#/ && NF {print $2}' ci/contracts.tsv | LC_ALL=C sort > "$RUNNER_TEMP/declared.txt"
-          find tests -maxdepth 1 -type f -name '*.ores' -print | LC_ALL=C sort > "$RUNNER_TEMP/tests.txt"
-          diff -u "$RUNNER_TEMP/declared.txt" "$RUNNER_TEMP/tests.txt"
-      - name: Check runner syntax
-        run: bash -n scripts/run-contracts.sh && bash -n ci/check-fixtures.sh
-      - name: Test fixture validator adversarially (host only)
-        run: bash ci/test-fixtures.sh
-      - name: Validate exact source and oracle inventory (structural only)
-        run: bash ci/check-fixtures.sh
-      - name: Require exact local compiler checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
-          expected="$(tr -d '[:space:]' < SOURCE_REF)"
-          test "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" = "$expected"
-          test -z "$(git -C "$ORESLANG_SOURCE_DIR" status --porcelain --untracked-files=all)"
-          echo "demo_head=$(git rev-parse HEAD)"
-          echo "demo_tree=$(git rev-parse HEAD^{tree})"
-          echo "compiler_head=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)"
-          echo "compiler_tree=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD^{tree})"
-      - name: Compile and execute loopback HTTP contracts
-        run: bash scripts/run-contracts.sh
+          echo 'HOST_STRUCTURAL_ONLY: AttoLang compiler/guest NOT_EXECUTED'

@@ -6,8 +6,9 @@ source_ref="$(tr -d '[:space:]' < "$root/SOURCE_REF")"
 [[ "$source_ref" =~ ^[0-9a-f]{40}$ ]] ||
   { echo "SOURCE_REF must be an exact lowercase 40-character commit SHA" >&2; exit 64; }
 
-: "${ORESLANG_SOURCE_DIR:?Set ORESLANG_SOURCE_DIR to an existing exact compiler checkout}"
-compiler="$(cd "$ORESLANG_SOURCE_DIR" && pwd -P)"
+source_dir="${ATTOLANG_SOURCE_DIR:-${ORESLANG_SOURCE_DIR:-}}"
+[[ -n "$source_dir" ]] || { echo "ATTOLANG_SOURCE_DIR or legacy ORESLANG_SOURCE_DIR must name an exact trusted compiler checkout" >&2; exit 64; }
+compiler="$(cd "$source_dir" && pwd -P)"
 [[ -f "$compiler/pom.xml" ]] || { echo "compiler checkout missing pom.xml" >&2; exit 66; }
 git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
   { echo "compiler checkout must be a Git worktree" >&2; exit 65; }
@@ -24,7 +25,7 @@ echo "compiler_ref=$source_ref"
 echo "demo_ref=$(git -C "$root" rev-parse HEAD 2>/dev/null || printf 'unversioned')"
 mvn -B -ntp -q -e -f "$compiler/pom.xml" -DskipTests compile
 
-run_ores() {
+run_atto() {
   local args="$1"
   mvn -B -ntp -q -e -f "$compiler/pom.xml" -DskipTests exec:java "-Dexec.args=$args"
 }
@@ -33,10 +34,10 @@ while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   [[ -f "$root/$file" && ! -L "$root/$file" ]] ||
     { echo "invalid source inventory entry: $file" >&2; exit 65; }
-  run_ores "--check $root/$file"
-done < "$root/ci/oreslang-files.txt"
+  run_atto "--check $root/$file"
+done < "$root/ci/atto-files.txt"
 
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/ores-phoenix-contracts.XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/atto-phoenix-contracts.XXXXXX")"
 server_log="$tmp/server.log"
 server_pid=""
 
@@ -67,7 +68,7 @@ setsid bash -c '
   set -euo pipefail
   compiler="$1"
   root="$2"
-  exec mvn -B -ntp -q -e -f "$compiler/pom.xml" -DskipTests exec:java     "-Dexec.args=--allow-net=127.0.0.1:8082 $root/src/main.ores"
+  exec mvn -B -ntp -q -e -f "$compiler/pom.xml" -DskipTests exec:java     "-Dexec.args=--allow-net=127.0.0.1:8082 $root/src/main.atto"
 ' _ "$compiler" "$root" >"$server_log" 2>&1 &
 server_pid=$!
 
@@ -112,6 +113,6 @@ while IFS=$'\t' read -r name file expectation extra; do
 done < "$root/ci/contracts.tsv"
 
 kill -0 "$server_pid"
-grep -Fq 'Oreslang Phoenix-style demo listening on loopback:8082' "$server_log"
+grep -Fq 'AttoLang Phoenix-style demo listening on loopback:8082' "$server_log"
 [[ "$total" -gt 0 && "$passed" -eq "$total" ]]
 echo "$passed/$total Phoenix-style HTTP contracts passed"

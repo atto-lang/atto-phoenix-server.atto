@@ -1,40 +1,23 @@
-# Phoenix-style server acceptance contract
+# AttoLang Phoenix-style HTTP acceptance contract
 
-The repository is an **executable loopback source candidate**. Promotion requires a real green exact-head run on the pinned compiler.
+**Status:** canonical `.atto` candidate; native guest execution not attested.
 
-## Implemented boundary
+## Current intended boundary
 
-- Fixed loopback listener: `127.0.0.1:8082`.
-- Bounded HTTP admission: 64 active requests.
-- Bounded request body: 16 KiB.
-- Request deadline: 5 seconds.
-- Pooled isolated request actors: 16.
-- `GET /hello` only.
-- `POST /echo` only, with `text/plain` content type.
-- Unknown routes return 404; wrong methods return 405; unsupported echo media types return 415.
-- No filesystem, subprocess, host reflection, public bind, template, database, or arbitrary outbound-network capability.
+- Loopback-only `127.0.0.1:8082`, 64 active HTTP admissions, 16 pooled isolated actors, 16 KiB body cap, 5s per-request deadline.
+- `GET /healthz` -> 200 `ok`; `GET /hello` -> 200 `hello from attolang`; `POST /echo` returns the exact plain-text request body.
+- Unknown route 404, wrong method 405, unsupported echo media type 415.
+- Single-use `http.claim` actor-bound token; no guest socket, reflection, process or unrestricted filesystem authority.
+- `eq` / `neq` canonical comparison operators and unsuffixed awaitable I/O APIs.
 
-## Required executable evidence
+## Required executed evidence before promotion
 
-The exact runner must:
+1. Attest exact demo PR head/tree and `SOURCE_REF` compiler head/tree.
+2. Run source inventory and Git-index negative policy tests (legacy `.ores`, odd-case extension, path/symlink/contract tampering).
+3. Compile-check **all** inventory `.atto` files with the pinned real compiler.
+4. Start a real actor-backed loopback HTTP server, run all **three** native `.atto` clients, compare exact stdout, check negative HTTP status codes and server survival.
+5. Add and execute request framing, 503 overload, 504 deadline, disconnect, drain, restart, hot-generation and actor-reclamation tests.
+6. Require nonzero-step exact-head CI and independent review; zero-step jobs remain `NOT_EXECUTED`.
+7. Repeat actual portable contracts with LLVM, .NET NativeAOT, Wasm and Forge before any five-backend claim.
 
-1. prove the demo and compiler commit/tree identities;
-2. prove the compiler checkout is clean and equals `SOURCE_REF`;
-3. compiler-check every path in `ci/oreslang-files.txt`;
-4. start the real Oreslang HTTP listener;
-5. execute every row in `ci/contracts.tsv` with exact stdout oracles;
-6. verify the server remains alive after the negative cases.
-
-Current clients verify exact hello/echo bodies plus 404/405/415 status behavior.
-
-## Remaining gates
-
-- graceful application-triggered drain using `server.shutdown(grace_ms)`;
-- client disconnect and deadline behavior;
-- overload/503 behavior under bounded admission;
-- handler failure mapping and actor replacement;
-- repeated start/stop with no leaked actors or listener state;
-- hot-generation routing where new requests bind to the new generation and old requests drain under the old generation;
-- Java/Graal AOT and LLVM parity before backend-neutral claims.
-
-No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim follows from this source candidate.
+No public bind, TLS, HTTP/2, native guest WebSockets, Phoenix compatibility, arbitrary HTML rendering or hostile-code tenant sandbox is claimed. Transport validates framing; actor application logic stays in `.atto`; the supervisor retains lifecycle and admission authority. Stateful sessions need serial mailbox ownership, generation fencing, bounded slow-subscriber backpressure and cancellation.

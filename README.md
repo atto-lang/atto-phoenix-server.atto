@@ -1,31 +1,39 @@
-# Oreslang Phoenix-style server demo
+# AttoLang Phoenix-style actor web server
 
-**Status: loopback HTTP source candidate; exact-head execution pending.**
+**Status: `.atto` source candidate — native execution NOT VERIFIED.**
 
-This repository now contains a small Oreslang-native HTTP actor application with:
+This application is an AttoLang actor-backed HTTP demo, **not** a port or compatibility implementation of Elixir Phoenix, Plug, LiveView, or the BEAM.
 
-- `GET /hello` → `hello from oreslang`;
-- `POST /echo` → echoes a bounded `text/plain` request body;
-- explicit 404, 405, and 415 behavior;
-- a fixed **127.0.0.1:8082** listener;
-- admission capacity 64, 16 pooled isolated request actors, a 16 KiB body limit, and a 5 second request deadline.
+The repository's `main` remains a bootstrap while HTTP PR #2 and the LiveView/WebSocket drafts await their own independent security reviews. This migration stacks on [HTTP PR #2](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/pull/2) to preserve the existing actor server implementation.
 
-This is an ergonomics/demo project. It is **not** a port of or compatibility claim for Elixir Phoenix, Plug, or the BEAM VM.
+## HTTP application
 
-The machine-readable status is in [`demo-status.txt`](demo-status.txt), and [`DEMO_CONTRACT.md`](DEMO_CONTRACT.md) defines the promotion boundary.
+- `src/main.atto`: an isolated `RequestHandler` actor receives single-use claimed request-exchange tokens. The lower-level HTTP host adapter owns framing and socket I/O.
+- `GET /healthz` returns 200 `ok`; `GET /hello` returns 200 `hello from attolang`; `POST /echo` echoes only `text/plain`.
+- Wrong methods return 405, missing routes 404, and unsupported echo media types 415.
+- Fixed loopback-only `127.0.0.1:8082`, 64 active request admissions, 16 pooled request actors, 16 KiB request body limit, 5s request deadline.
+- `tests/*.atto` are candidate guest clients with exact output oracles. `ci/atto-files.txt` and `ci/contracts.tsv` must match the Git index.
+- `SOURCE_REF` pins Java/GraalVM compiler commit `6d8eb70048eafc9a84c5aebe9c1bb06104f16e76` (observed `main` on 2026-11-10). A newer compiler tip requires another reviewed pin update and retest.
 
-## Exact compiler boundary
+## Validate and execute
 
-`SOURCE_REF` pins the Java/Graal compiler/runtime to `f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa`.
+Unprivileged GitHub-hosted CI checks source inventory, legacy extension rejection, Git-index symlinks, exact HEAD, and adversarial fixture policy. **It never compiles or executes AttoLang guests.**
 
-The CI runner never fetches, resets, or mirrors private compiler source. The trusted source-org runner must provide an existing clean `ORESLANG_SOURCE_DIR` at exactly that commit. The contract runner compiler-checks every inventoried source, starts the real Oreslang listener, and drives it with Oreslang HTTP/TCP clients.
+On a separately authorized isolated runner with a clean exact checkout of the pinned Java backend:
 
-A queued or zero-step job is `NOT_EXECUTED`; no runtime pass is claimed until real steps run.
+```bash
+export ATTOLANG_SOURCE_DIR=/absolute/path/to/trusted/oreslang-source.java
+bash ci/check-fixtures.sh
+bash ci/test-fixtures.sh
+bash scripts/run-contracts.sh
+```
 
-## Current constraints
+The runner requires JDK 25, Maven, `setsid`, `timeout`, and scoped loopback network access. It compiler-checks every `.atto` file, launches the loopback actor server, runs three guest clients, compares exact outputs, verifies server survival, and terminates the process group.
 
-TLS, HTTP/2, WebSockets, templates, JSON codecs, signed cookies, database access, public bind, and outbound application network access are not part of this demo. The server receives only the loopback listener capability used by the test profile.
+**Unreviewed PR code must not run on persistent private compiler runners.** The previous PR-triggered self-hosted native job is disabled by the structural-only replacement. Native execution needs an independently reviewed exact-SHA approval dispatcher (draft [PR #7](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/pull/7)) and stepful evidence. No unauthorized cross-organization private source transfer.
 
-Graceful signal-driven draining and hot-generation routing remain later gates. The underlying HTTP runtime exposes bounded server shutdown, but this source candidate does not yet expose an application control path for it.
+## Next phases
 
-Tracked by [issue #3](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/issues/3).
+LiveView/WebSocket reference drafts [#11](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/pull/11), [#14](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/pull/14) and [#17](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/pull/17) already include transport hardening and a native `counter_live.atto` *target*. They remain separate and **not verified as native guest execution**. Add typed channels, per-view actors, supervision, safe server-rendered diffs and PubSub only behind explicit capabilities, resource limits and security reviews.
+
+See [DEMO_CONTRACT.md](DEMO_CONTRACT.md) and [migration gates](docs/ATTO_MIGRATION_GATES.md).

@@ -7,5 +7,5 @@
     "oreslang-source.java"
   ],
   "evidence": "not-attested",
-  "note": "Loopback HTTP source candidate; exact runtime evidence remains pending on the approved private runner."
+  "note": "Canonical AttoLang .atto HTTP actor demo; exact-head Java/GraalVM compiler and guest execution remain pending; ecosystem protocol ID is legacy-compatible."
 }

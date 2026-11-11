@@ -6,7 +6,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$root"
 fail() { printf 'FIXTURE_POLICY_FAILURE: %s\n' "$*" >&2; exit 2; }
 [[ "$(git rev-parse --show-toplevel)" == "$root" ]] || fail 'repository root mismatch'
-for file in ci/contracts.tsv ci/oreslang-files.txt; do
+for file in ci/contracts.tsv ci/atto-files.txt; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing or symlinked $file"
 done
 # Git-index mode is the authority: reject staged links/submodules even if
@@ -27,7 +27,7 @@ awk -F '\t' '
   /^#/ {next}
   {
     if (NF != 3 || $1 !~ /^[a-z][a-z0-9_-]*$/ ||
-        $2 !~ /^tests\/[a-z0-9_]+\.ores$/ ||
+        $2 !~ /^tests\/[a-z0-9_]+\.atto$/ ||
         $3 !~ /^tests\/[a-z0-9_]+\.out$/ ||
         $3 != substr($2, 1, length($2) - 5) ".out" ||
         names[$1]++ || sources[$2]++ || oracles[$3]++) {
@@ -49,21 +49,34 @@ while IFS= read -r file; do
 done < <(cat "$tmp/contract-sources" "$tmp/contract-oracles")
 
 # All committed tests must be declared and compiler-check inventory exact.
-git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.ores$' | sort > "$tmp/tracked-tests"
+git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.atto$' | sort > "$tmp/tracked-tests"
 sort "$tmp/contract-sources" > "$tmp/contract-tests"
 diff -u "$tmp/contract-tests" "$tmp/tracked-tests" || fail 'unlisted/absent fixture tests'
 
+# Fail closed on legacy or case-variant guest extensions anywhere in the Git index.
+# NUL-separated enumeration prevents filename newline bypass.
+while IFS= read -r -d '' path; do
+  case "${path,,}" in
+    *.ores) fail "legacy .ores guest source forbidden: $path" ;;
+    *.atto)
+      [[ "$path" == *.atto ]] || fail "noncanonical source extension: $path"
+      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.atto$ ]] ||
+        fail "unexpected AttoLang source path: $path"
+      ;;
+  esac
+done < <(git ls-files -z --cached)
+
 # Count *every* tracked source; unexpected names and nested sources fail.
-git ls-files -- src tests | grep -E '\.ores$' | sort > "$tmp/tracked-sources"
+git ls-files -- src tests | grep -E '\.atto$' | sort > "$tmp/tracked-sources"
 while IFS= read -r file; do
-  [[ "$file" =~ ^(src|tests)/[a-z0-9_]+\.ores$ ]] || fail "unexpected Oreslang source path: $file"
-  [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked Oreslang source: $file"
+  [[ "$file" =~ ^(src|tests)/[a-z0-9_]+\.atto$ ]] || fail "unexpected AttoLang source path: $file"
+  [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked AttoLang source: $file"
 done < "$tmp/tracked-sources"
-[[ -s "$tmp/tracked-sources" ]] || fail 'no Oreslang source'
-git ls-files | grep -E '\.ores$' | sort > "$tmp/all-sources"
-diff -u "$tmp/all-sources" "$tmp/tracked-sources" || fail 'Oreslang source outside src/tests or unsupported path'
-if ! diff -u ci/oreslang-files.txt "$tmp/tracked-sources"; then
+[[ -s "$tmp/tracked-sources" ]] || fail 'no AttoLang source'
+git ls-files | grep -E '\.atto$' | sort > "$tmp/all-sources"
+diff -u "$tmp/all-sources" "$tmp/tracked-sources" || fail 'AttoLang source outside src/tests or unsupported path'
+if ! diff -u ci/atto-files.txt "$tmp/tracked-sources"; then
   fail 'compiler-check inventory must match exactly, sorted and unique'
 fi
 printf 'FIXTURE_STRUCTURAL_PASS contracts=%s sources=%s\n' "$(wc -l < "$tmp/contract-tests")" "$(wc -l < "$tmp/tracked-sources")"
-echo 'NOT_EXECUTED: no Oreslang compiler/guest invoked'
+echo 'NOT_EXECUTED: no AttoLang compiler/guest invoked'
