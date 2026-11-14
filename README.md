@@ -1,3 +1,12 @@
+> [!IMPORTANT]
+> **DEPRECATED — project moved to [atto-poc/atto-phoenix-demo.atto](https://github.com/atto-poc/atto-phoenix-demo.atto).**
+>
+> This private Oreslang-named repository is retained as a **read-only historical reference**; do not start new feature work here. The replacement Atto project has been initialized and [draft migration/benchmark PR #1](https://github.com/atto-poc/atto-phoenix-demo.atto/pull/1) is open.
+>
+> **Migration is not finished.** This repo's `main` is documentation-only; its unmerged `.atto` implementation and LiveView branches remain here until independently authorized cross-organization source transfer and review. [Security incident #22](https://github.com/ores-truffle-oreslang/oreslang-platform-conformance/issues/22) still blocks source copying. Neither full Phoenix compatibility nor a native-executed Atto server is attested.
+>
+> Repository archival is a follow-up **after** reviewed source migration; this notice does not set the GitHub Archived flag.
+
 # Oreslang Phoenix-style server demo
 
 **Status: empty-demo bootstrap.** This is a prospective Oreslang-native example, **not** a port of or claim of compatibility with Elixir/Phoenix, Plug or the BEAM VM. There is no runnable server here yet.
@@ -18,13 +27,14 @@
 
 Tracked by private [organization integration registry PR #79](https://github.com/ores-truffle-oreslang/oreslang-platform-conformance/pull/79).
 
-## Repository ownership and migration (2026-11-08)
+## Historical repository ownership and migration notes (updated 2026-11-14)
 
-The language is publicly **AttoLang** (formerly Oreslang), while the repository remains `ores-truffle-oreslang/oreslang-phoenix-server.ores`. Keep supported `.ores` source, historical import/package IDs and command names working unless a reviewed compatibility change proves replacements.
+The language is now **AttoLang** (formerly Oreslang). This historical repository retains its original GitHub name and .ores identity; preserve historical source, supported import/package IDs and compatibility behavior when planning migrations.
 
-- **Belongs here:** Phoenix-style server and actor demo source, protocol acceptance tests.
-- **Explicitly out of scope:** production HTTP-server feature parity without executed native guest proof.
-- **Organization split:** [atto-lang](https://github.com/atto-lang) maintains the compiler, portable language libraries and demo ecosystem; [atto-co](https://github.com/atto-co) handles independently governed commercial cloud hosting, tenant identity, billing, deployment control, networking and infrastructure. Related `atto-*` repos are not assumed transferred copies.
-- **Proposed first move:** transfer this **same GitHub repository** to `atto-lang/oreslang-phoenix-server.ores`, preserving numeric ID, name and Git history, after individual authorizations. No direct old-org transfer to `atto-co` is authorized now. Future product spinouts need a separate decision.
+- **Historical scope:** Phoenix-style server and actor demo source, protocol acceptance tests, and the review history recorded in this repository.
+- **Not a production claim:** native AttoLang HTTP/actor runtime support and Phoenix feature parity require independently executed guest evidence.
+- **Current demo successor:** [atto-poc/atto-phoenix-demo.atto](https://github.com/atto-poc/atto-phoenix-demo.atto). New implementation work belongs there, subject to its review and security policies.
+- **Organization responsibilities:** [atto-lang](https://github.com/atto-lang) covers the language/compiler ecosystem; [atto-poc](https://github.com/atto-poc) holds proof-of-concept demos; [atto-co](https://github.com/atto-co) is separately governed for commercial hosting and operations. The original proposal to transfer this same repository directly to atto-lang is superseded by the successor project and is **not authorization** for any transfer.
+- **Source security:** [open incident #22](https://github.com/ores-truffle-oreslang/oreslang-platform-conformance/issues/22) forbids private-source mirroring across organizations pending independent clearance. Do not use test-runner budget or branch mirroring as a substitute for security authorization.
 
-**Migration and security checklist:** post ownership claim to [coordination issue #26](https://github.com/ores-truffle-oreslang/.github/issues/26); follow private [runbook draft #25](https://github.com/ores-truffle-oreslang/.github/pull/25). Record ID, exact head SHA/tree, PR/release/package consumers, Apps/webhooks, Pages, secrets, Actions/runners, branch/ruleset enforcement, target visibility/access, source/target admin approval, independent security review and rollback owner. Never mirror private source to evade a blocked transfer. Verify unchanged identity/history/tree and re-enable protections after the authorized GitHub transfer, then update external references and run exact-head CI. Jobs with zero executed steps (`steps=[]`/`null`) are `NOT_EXECUTED`, not success. Host-only and static tests do not prove native AttoLang guest or production networking capabilities.
+**Migration checklist:** coordinate ownership and approvals through [issue #26](https://github.com/ores-truffle-oreslang/.github/issues/26) and the [runbook draft #25](https://github.com/ores-truffle-oreslang/.github/pull/25). Record source/destination identity, exact head and tree SHA, existing PR/release/package consumers, Apps/webhooks, runners/secrets, visibility, protection rules, independent security review, rollback owner and explicit permission for any source transfer. Preserve history and verify exact source identity if a later transfer is authorized. Jobs with zero executed steps are NOT_EXECUTED, not passing CI; host-only source tests do not prove native guest or network execution.
