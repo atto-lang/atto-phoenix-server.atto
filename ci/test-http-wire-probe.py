@@ -105,6 +105,156 @@ class OracleTests(unittest.TestCase):
                 probe.verify_concurrent()
 
 
+    def test_http_699_is_not_a_valid_oversize_rejection(self):
+        with mock.patch.object(probe, "exchange", return_value=(699, b"")):
+            with self.assertRaises(AssertionError):
+                probe.verify_oversized()
+
+    def test_http_500_is_a_valid_oversize_rejection(self):
+        with mock.patch.object(probe, "exchange", return_value=(500, b"")):
+            probe.verify_oversized()
+
+    def test_mime_policy_accepts_only_declared_forms(self):
+        accepted = {"text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8"}
+
+        def mock_echo(method, path, data=None, headers=None, timeout=7):
+            media = (headers or {}).get("Content-Type")
+            return (200, b"ping") if media in accepted else (415, b"rejected")
+
+        with mock.patch.object(probe, "exchange", side_effect=mock_echo) as call:
+            probe.verify_media_types()
+            self.assertEqual(call.call_count, 7)
+
+    def test_mime_policy_fails_if_unknown_parameter_is_accepted(self):
+        with mock.patch.object(probe, "exchange", return_value=(200, b"ping")):
+            with self.assertRaises(AssertionError):
+                probe.verify_media_types()
+
+    def test_mime_policy_fails_if_valid_charset_is_denied(self):
+        with mock.patch.object(probe, "exchange", return_value=(415, b"")):
+            with self.assertRaises(AssertionError):
+                probe.verify_media_types()
+
+    def test_four_waves_really_submit_128_distinct_requests(self):
+        def echo(method, path, data=None, headers=None, timeout=7):
+            return (200, b"hello from oreslang" if method == "GET" else data)
+
+        with mock.patch.object(probe, "exchange", side_effect=echo) as call:
+            probe.verify_concurrent()
+            self.assertEqual(call.call_count, 128)
+            bodies = [args.kwargs.get("data", args.args[2] if len(args.args) > 2 else None)
+                      for args in call.call_args_list if args.args[0] == "POST"]
+            self.assertEqual(len(bodies), 64)
+            self.assertEqual(len(set(bodies)), 64)
+
+    def test_second_wave_response_mixup_is_rejected(self):
+        def bad_echo(method, path, data=None, headers=None, timeout=7):
+            if method == "POST" and data == b"request-34":
+                return 200, b"request-2"
+            return 200, b"hello from oreslang" if method == "GET" else data
+
+        with mock.patch.object(probe, "exchange", side_effect=bad_echo):
+            with self.assertRaises(AssertionError):
+                probe.verify_concurrent()
+
+    def test_zero_churn_waves_are_rejected(self):
+        with self.assertRaises(AssertionError):
+            probe.verify_concurrent(rounds=0)
+
+    def test_negative_worker_count_is_rejected(self):
+        with self.assertRaises(AssertionError):
+            probe.verify_concurrent(workers=-1)
+
+
+    def test_disconnect_churn_closes_each_socket_and_recovers(self):
+        messages = []
+        class TrackedSocket:
+            def __enter__(self):
+                return self
+            def __exit__(self, typ, value, tb):
+                messages.append(b"CLOSED")
+            def settimeout(self, timeout):
+                pass
+            def sendall(self, data):
+                messages.append(data)
+
+        with mock.patch.object(probe.socket, "create_connection", side_effect=lambda *a, **k: TrackedSocket()) as opened:
+            with mock.patch.object(probe, "exchange", return_value=(200, b"hello from oreslang")) as req:
+                probe.verify_disconnect_churn(waves=2, sockets_per_wave=4)
+        self.assertEqual(opened.call_count, 8)
+        self.assertEqual(req.call_count, 2)
+        self.assertEqual(messages.count(b"CLOSED"), 8)
+        payloads = [m for m in messages if m != b"CLOSED"]
+        self.assertEqual(sum(m.startswith(b"GET /hello") for m in payloads), 4)
+        self.assertEqual(sum(m.startswith(b"POST /echo") for m in payloads), 4)
+        self.assertTrue(all(b"Content-Length: 32" in m for m in payloads if m.startswith(b"POST")))
+
+    def test_disconnect_churn_rejects_lost_recovery(self):
+        class ClosedSocket:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return None
+            def settimeout(self, timeout):
+                pass
+            def sendall(self, data):
+                pass
+
+        with mock.patch.object(probe.socket, "create_connection", return_value=ClosedSocket()):
+            with mock.patch.object(probe, "exchange", return_value=(503, b"busy")):
+                with self.assertRaises(AssertionError):
+                    probe.verify_disconnect_churn(waves=1, sockets_per_wave=2)
+
+    def test_disconnect_churn_rejects_invalid_bounds(self):
+        for kwargs in ({"waves": 0}, {"waves": 9}, {"sockets_per_wave": 0},
+                       {"sockets_per_wave": 33}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(AssertionError):
+                probe.verify_disconnect_churn(**kwargs)
+
+    def test_disconnect_churn_write_failure_cannot_pass(self):
+        class FailingSocket:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return None
+            def settimeout(self, timeout):
+                pass
+            def sendall(self, data):
+                raise BrokenPipeError("simulated client write failure")
+
+        with mock.patch.object(probe.socket, "create_connection", return_value=FailingSocket()):
+            with self.assertRaises(BrokenPipeError):
+                probe.verify_disconnect_churn(waves=1, sockets_per_wave=1)
+
+
+    def test_http_lf_only_rejection_is_not_accepted(self):
+        with self.assertRaises(AssertionError):
+            fake_response(b"HTTP/1.1 400 Bad Request\n\n")
+
+    def test_http_600_status_is_not_a_valid_rejection(self):
+        with self.assertRaises(AssertionError):
+            fake_response(b"HTTP/1.1 600 Invalid\r\n\r\n")
+
+    def test_http_599_status_is_a_valid_rejection(self):
+        self.assertEqual(fake_response(b"HTTP/1.1 599 Error\r\n\r\n"), 599)
+
+    def test_http_302_does_not_reject_oversized_body(self):
+        with mock.patch.object(probe, "exchange", return_value=(302, b"redirect")):
+            with self.assertRaises(AssertionError):
+                probe.verify_oversized()
+
+    def test_full_body_boundary_cannot_accept_truncation(self):
+        def bad_echo(method, path, data=None, headers=None, timeout=7):
+            if method == "GET":
+                return 200, b"hello from oreslang"
+            if data is not None and len(data) == 16384:
+                return 200, data[:-1]
+            return 200, data or b""
+        with mock.patch.object(probe, "exchange", side_effect=bad_echo):
+            with self.assertRaises(AssertionError):
+                probe.verify_success()
+
+
 if __name__ == "__main__":
     result = unittest.main(verbosity=1, exit=False).result
     if result.wasSuccessful():

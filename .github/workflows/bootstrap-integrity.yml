@@ -51,6 +51,10 @@ jobs:
         run: python3 -I -B ci/test-http-wire-probe.py
       - name: Test extra MIME and framing wire oracles (host only)
         run: python3 -I -B ci/test-http-wire-extra-probe.py
+      - name: Test slow-client deadline oracle (host only)
+        run: python3 -I -B ci/test-http-slow-client-probe.py
+      - name: Test admission saturation oracle adversarially (host only)
+        run: python3 -I -B ci/test-http-capacity-probe.py
       - name: Test exact-head runner preflight adversarially (host only)
         run: bash ci/test-runner-preflight.sh
       - name: Test fixture policy adversarially (host only)

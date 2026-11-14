@@ -188,3 +188,173 @@ Latest candidate source-org GitHub Actions [run #41270965534](https://github.com
 failed at zero steps with `runner_id=0` for host fixture admission,
 while native guest execution was skipped. Do not promote this
 candidate until exact-head host CI and real Oreslang listener tests run.
+
+## Byte-accurate HTTP wire probe and oracle tests (2026-11-01)
+
+`ci/http-wire-probe.py` runs only **after** the native Oreslang
+listener and seven native client contracts. Unlike source-only `.ores`
+fixtures, it sends actual HTTP/1.1 bytes using Python's standard
+library, requires full bodies and exact response bytes, and performs
+these acceptance checks:
+
+- Exact successful `/echo` payloads at 0, 1, 16,383 and 16,384
+  bytes and `/hello` body match.
+- Fully transmitted 16,385-byte `/echo` payload must result in an
+  HTTP rejection or an explicit reset/connection close, **never 2xx**.
+- Conflicting Content-Length, Transfer-Encoding/Content-Length,
+  nonnumeric/negative length, duplicate/missing Host must reject or
+  close the connection, never return a successful echo.
+- 32 independent requests (8 concurrent workers) must return
+  the correct per-request body. This tests bounded concurrency
+  and isolation, **not** admission-overload/503 at 64 connections.
+- A partial header must receive a rejection or connection closure
+  within 8.5 seconds of socket timeout (9s wall-clock allowance)
+  and the server must remain responsive afterward. This tests
+  bounded handling, **not** exact five-second request deadlines.
+
+A silent socket timeout, malformed or truncated status, 1xx/2xx/3xx,
+or false body equality fails the wire probe. `ci/test-http-wire-probe.py`
+runs offline against synthetic localhost sockets and mocked HTTP
+responses. The earlier version verified **16/16 host-only oracle regressions locally**
+under Python 3.13.5 both with and without `-O`; the local files
+exactly matched their current GitHub Git blob hashes:
+
+- `ci/http-wire-probe.py` `be6c62faf01537985191de452c525fac49bb8ae7`
+- `ci/test-http-wire-probe.py` `5a7ba8150f7b31442aa604dc89afa1fb694df301`
+
+Native execution remains **NOT_EXECUTED** pending the reviewed-SHA
+controller, private Actions runner admission, pinned Java/Graal
+compiler and exact-head live listener. No generic Phoenix, WebSocket,
+load-balancer, security or backend-parity claim is made from synthetic
+oracle tests. The exact native runner requires `python3`, runs the
+16 offline cases, then executes the TCP probe with an outer timeout.
+
+## Expanded churn and fail-closed oracle coverage (2026-11-01)
+
+This later candidate extends the independently checked wire probe with
+four successive waves of 32 GET/POST requests (128 total, eight active
+workers at a time) and per-request body identity. This checks repeated
+actor dispatch and socket churn, *not* 64-admission overload/503.
+It additionally creates and closes 64 deliberately incomplete
+client requests across four waves, then requires a fresh successful
+`GET /hello` after each wave. This checks recovery from client
+disconnects, *not* leak freedom or deterministic actor cancellation.
+
+The probe also verifies strict `/echo` media admission for three
+accepted forms and four denied/missing Content-Type cases.
+An oversized completed request may only return an HTTP 4xx/5xx
+or close/reset; redirect, 2xx, nonstandard 6xx and timeout are
+not accepted as proof of rejection. The raw status oracle now
+requires a proper CRLF terminator and rejects LF-only status lines.
+
+`ci/test-http-wire-probe.py` now declares **34 host-only test
+methods**, including synthetic socket mocks for closure, teardown,
+failed recovery, repeated-wave request identity and malformed
+response classifications. These additional methods have **not**
+been executed on the current candidate in GitHub Actions;
+the earlier 16-test local pass applies only to its earlier exact
+blobs. Current source integrity and any subsequently executed
+tests must be recorded against their own exact Git SHAs.
+
+Still **not covered**: forcing 64 simultaneously active HTTP
+exchanges (as distinct from open TCP sockets), proving 503
+overload admission, actor supervisor replacement, signal-triggered
+graceful drain, memory/FD leak quantification, exact five-second
+deadline semantics, WebSockets or native multi-backend parity.
+These require instrumented runtime/protocol hooks and actual
+reviewed-head native execution; never infer them from churn
+or the host-only oracle.
+
+## Strict 503 admission saturation gate (pending native execution)
+
+`ci/http-capacity-probe.py` is an independent loopback TCP acceptance
+probe. It sends **80 concurrent incomplete POST bodies** (declaring
+16,384 bytes and sending one byte), holds at least **65 established**
+connections, observes bounded responses over seven seconds, and
+**requires at least one explicit HTTP 503**. An HTTP 408, a close or
+reset without a status, a socket remaining silent, or an accepted TCP
+handshake is *not* proof of 503/backpressure. It rejects any 1xx/2xx/
+3xx response to an incomplete request and checks **two consecutive**
+healthy `GET /hello` requests after releasing the held sockets.
+
+The check is intentionally strict and may FAIL on a runtime that
+queues and times out requests rather than issuing a 503. Such failure
+identifies missing or unverified overload behavior, but does **not**
+alone prove a particular runtime defect: TCP connection acceptance
+does not prove the HTTP runtime has admitted an application request.
+The exact 64-request capacity, resource accounting, supervisor
+replacement, graceful drain, five-second deadline, and post-test
+memory/descriptor stability remain separate promotion gates.
+
+`ci/test-http-capacity-probe.py` has **32 offline host-only tests**
+for malformed HTTP status lines, false 200/302/100/600 success,
+408-only and closure-only outcomes, insufficient established sockets,
+silent pending connections, real local socket-pair I/O, and two-step
+recovery. The suite passed locally under normal and optimized Python
+with the following **byte-identical GitHub blob IDs**:
+
+- `ci/http-capacity-probe.py`: `42c2fed9088fa71c5d5f52a42ff9ba481cdb5cbb`
+- `ci/test-http-capacity-probe.py`: `7052384ea17e7fad86649c52d581afaacdfda171`
+
+These tests use **no Oreslang compiler**. The hosted PR workflow
+runs the 26 offline cases, and the manually reviewed exact-SHA
+native runner runs them again before the bounded 45-second live
+saturation probe. All native saturation results are currently
+**NOT_EXECUTED**; no 503 success is claimed.
+
+The additional five local oracle tests verify that socket ownership is
+retained for successful dials, send failures close their sockets, and
+**all 80 sockets (or all 64 successfully established ones)** are closed
+after both successful and failed synthetic saturation outcomes. Local
+unit tests deliberately print a synthetic `HTTP_CAPACITY_PASS` from
+mocked I/O; that text is **not** a native server result.
+
+A further end-to-end host self-test runs an actual localhost TCP
+server (not Oreslang), holds 64 incomplete requests and responds 503
+to overload. It verified 80 established connections, 16 explicit
+HTTP 503 responses, cleanup, and two healthy recovery requests.
+The full **32/32** tests passed locally both with standard Python
+and `-O`. Git blob SHA for the exact executed test file is
+`7052384ea17e7fad86649c52d581afaacdfda171`. The synthetic
+server is merely a controlled test fixture and does not establish
+that the production Oreslang server returns 503 under pressure.
+
+## Slow-client trickle deadline and recovery checks (source candidate)
+
+`ci/http-slow-client-probe.py` uses real loopback TCP to leave
+HTTP/1.1 request headers or a 16,384-byte declared request body
+incomplete, while continuously trickling one byte every ~650 ms.
+For each case it requires an explicit HTTP 4xx/5xx status or connection
+closure **within seven seconds from initial connection attempt**,
+followed by a successful byte-identical GET `/hello`.
+
+A silent connection, HTTP success or redirect, malformed/partial
+status line, or elapsed-time bound violation fails the gate. The
+seven-second upper bound is intentionally conservative relative to the
+configured five-second request deadline: **a pass is not evidence of
+precise five-second accounting**, nor actor/FD leak freedom.
+
+`ci/test-http-slow-client-probe.py` includes 23 offline host-only
+checks for 100/200/302/600 false successes, 408/503/599 valid
+rejections, LF-only/truncated/oversized status lines, synthetic live
+TCP rejection/closure/silence/trickling, invalid parameters and
+recovery body corruption. Both files were compared byte-for-byte with
+their GitHub Git blobs and **23/23 tests passed locally under normal
+and optimized Python**:
+
+- Live probe: `e861fea21bfb1481530ed0690df9a9c2a636758b`
+- Offline oracle suite: `0a82402d06fbc72c16ee3dee0bc374679a61c3d4`
+
+The automatic PR job runs only the offline oracle suite. The manually
+authorized exact-SHA native runner runs the oracle and then executes
+the live probe with an outer 30-second timeout. Neither actual Oreslang
+listener execution nor exact-head GitHub Actions step execution is
+implied by these local synthetic results. All runtime evidence remains
+**NOT_EXECUTED** pending the protected private-runner gate.
+
+Three additional offline regression checks exercise slow-body bytes
+against a synthetic loopback TCP server, ensure `main()` executes both
+header/body cases and verifies recovery after each, and fail when a
+mocked response exceeds the seven-second allowance. All **23/23**
+pass under standard Python and `python -O`, with source and test
+hashes verified against the exact committed blobs.
