@@ -9,6 +9,14 @@
 
 # Oreslang Phoenix-style server demo
 
+## AttoLang migration and current contracts (2026-11-18)
+
+**AttoLang (formerly Oreslang)** is the public language name. This `ores-truffle-oreslang/oreslang-phoenix-server.ores` repository is the legacy named checkout; new corresponding work is routed to **[atto-lang/atto-phoenix-server.atto](https://github.com/atto-lang/atto-phoenix-server.atto)**. Existing history, issue/PR records, CI results, commands, and implementation status are not assumed identical across the two repos. The content and example commands below document this checkout, and legacy `.ores`, `oreslang-*` names and ABI/wire interfaces remain compatibility surfaces until proven migrations.
+
+**[atto-spec](https://github.com/atto-lang/atto-spec)** is the canonical normative language specification (not old Oreslang README files); [atto-platform-conformance](https://github.com/atto-lang/atto-platform-conformance) owns portable positive/negative guest tests, and [atto-common-source](https://github.com/atto-lang/atto-common-source) owns portable `.atto` library code. Source design targets include `snake_case`, explicit `borrow!`/`take!`/`share!`/`copy!`/`copy!!`, [implicit argument borrowing](https://github.com/atto-lang/atto-spec/blob/main/language/implicit-argument-borrow-v1.md), [file/module `define const` with permitted one-time nonthrowing `os.read_env`](https://github.com/atto-lang/atto-spec/blob/main/language/file-module-const-v1.md) and [bitwise shifts `<<<`/`>>>`/`ashr` versus `<<`/`>>` stream operations](https://github.com/atto-lang/atto-spec/blob/main/language/bitwise-and-stream-operators-v1.md). These are intended semantics, not evidence this old project executes them.
+
+No Python scripts, generators or test/CI harnesses for new AttoLang work; prefer Rust tools when necessary. Compiler/runtime parity requires exact commits/tree, toolchain, actual positive and negative compiled guest tests, and explicit unsupported/failed/not-executed results. Host-only tests or zero-step Actions cannot certify language support.
+
 **Status: empty-demo bootstrap.** This is a prospective Oreslang-native example, **not** a port of or claim of compatibility with Elixir/Phoenix, Plug or the BEAM VM. There is no runnable server here yet.
 
 ## Integration contract
