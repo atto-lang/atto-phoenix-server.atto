@@ -49,6 +49,8 @@ jobs:
         run: bash -n scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh ci/test-runner-preflight.sh
       - name: Test HTTP wire oracle adversarially (host only)
         run: python3 -I -B ci/test-http-wire-probe.py
+      - name: Test extra MIME and framing wire oracles (host only)
+        run: python3 -I -B ci/test-http-wire-extra-probe.py
       - name: Test slow-client deadline oracle (host only)
         run: python3 -I -B ci/test-http-slow-client-probe.py
       - name: Test admission saturation oracle adversarially (host only)

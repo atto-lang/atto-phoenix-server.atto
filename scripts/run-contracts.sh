@@ -132,9 +132,11 @@ kill -0 "$server_pid"
 grep -Fq 'Oreslang Phoenix-style demo listening on loopback:8082' "$server_log"
 [[ "$total" -gt 0 && "$passed" -eq "$total" ]]
 python3 -I -B "$root/ci/test-http-wire-probe.py"
+python3 -I -B "$root/ci/test-http-wire-extra-probe.py"
 # Do not conflate native .ores client results with this independent Python TCP probe.
 # A timeout, wrong response body, or silent connection is a failed acceptance.
 timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-probe.py"
+timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-extra-probe.py"
 python3 -I -B "$root/ci/test-http-slow-client-probe.py"
 # Absolute bounded stall checks: an incomplete header/body must not stay
 # open indefinitely merely because the peer periodically trickles bytes.
@@ -143,4 +145,4 @@ python3 -I -B "$root/ci/test-http-capacity-probe.py"
 # This strict native gate requires real 503 evidence; 80 TCP connects alone
 # cannot prove 64-slot HTTP admission or backpressure semantics.
 timeout --signal=TERM --kill-after=5s 45s python3 -I -B "$root/ci/http-capacity-probe.py"
-echo "$passed/$total Phoenix-style HTTP contracts passed, wire and saturation gates passed"
+echo "$passed/$total Phoenix-style HTTP contracts passed, MIME/framing wire probes, slow-client and saturation gates passed"
