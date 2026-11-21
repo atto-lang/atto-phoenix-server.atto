@@ -1,0 +1,72 @@
+// Route/method isolation: no accidental prefix, suffix or verb matching.
+// These requests must hit only the declared GET /hello and POST /echo
+// routes; no wildcard controller fallback may turn them into success.
+pub async routine main(): int {
+  val upper_route = await network.connect_async("127.0.0.1", 8082);
+  await upper_route.write_text_async(
+    "GET /HELLO HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+  );
+  val upper_status = await upper_route.read_line_async();
+  await upper_route.close_async();
+  if upper_status.is_none() ||
+    !upper_status.unwrap().starts_with("HTTP/1.1 404"); then
+    stdio.println("FAIL route case isolation");
+    return 1;
+  fi
+
+  val route_suffix = await network.connect_async("127.0.0.1", 8082);
+  await route_suffix.write_text_async(
+    "GET /hello/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+  );
+  val suffix_status = await route_suffix.read_line_async();
+  await route_suffix.close_async();
+  if suffix_status.is_none() ||
+    !suffix_status.unwrap().starts_with("HTTP/1.1 404"); then
+    stdio.println("FAIL route suffix isolation");
+    return 1;
+  fi
+
+  val options_hello = await network.connect_async("127.0.0.1", 8082);
+  await options_hello.write_text_async(
+    "OPTIONS /hello HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+  );
+  val options_status = await options_hello.read_line_async();
+  await options_hello.close_async();
+  if options_status.is_none() ||
+    !options_status.unwrap().starts_with("HTTP/1.1 405"); then
+    stdio.println("FAIL OPTIONS method isolation");
+    return 1;
+  fi
+
+  val put_echo = await network.connect_async("127.0.0.1", 8082);
+  await put_echo.write_text_async(
+    "PUT /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+  );
+  val put_status = await put_echo.read_line_async();
+  await put_echo.close_async();
+  if put_status.is_none() ||
+    !put_status.unwrap().starts_with("HTTP/1.1 405"); then
+    stdio.println("FAIL PUT method isolation");
+    return 1;
+  fi
+
+  val delete_echo = await network.connect_async("127.0.0.1", 8082);
+  await delete_echo.write_text_async(
+    "DELETE /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+  );
+  val delete_status = await delete_echo.read_line_async();
+  await delete_echo.close_async();
+  if delete_status.is_none() ||
+    !delete_status.unwrap().starts_with("HTTP/1.1 405"); then
+    stdio.println("FAIL DELETE method isolation");
+    return 1;
+  fi
+
+  val String hello = await http.get_text_async("http://127.0.0.1:8082/hello");
+  if hello != "hello from oreslang"; then
+    stdio.println("FAIL valid route after rejected methods");
+    return 1;
+  fi
+  stdio.println("PASS Phoenix-style HTTP route and method isolation");
+  return 0;
+}

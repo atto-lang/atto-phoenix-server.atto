@@ -93,5 +93,41 @@ touch "$repo/$newline_path"
 git -C "$repo" add -- "$newline_path"
 check_bad
 git -C "$repo" rm -q -f -- "$newline_path"
+# Additional manifest and Git-index adversaries protect exact-head dispatch.
+: > "$repo/ci/contracts.tsv"
+check_bad
+git -C "$repo" checkout -- ci/contracts.tsv
+printf 'http-extra\ttests/http_success.ores\ttests/http_success.out\textra\n' >> "$repo/ci/contracts.tsv"
+check_bad
+git -C "$repo" checkout -- ci/contracts.tsv
+printf 'http-alias\ttests/http_success.ores\ttests/http_success.out\n' >> "$repo/ci/contracts.tsv"
+check_bad
+git -C "$repo" checkout -- ci/contracts.tsv
+printf 'tests/http_success.ores\nsrc/main.ores\ntests/http_negative.ores\n' > "$repo/ci/oreslang-files.txt"
+check_bad
+git -C "$repo" checkout -- ci/oreslang-files.txt
+printf 'tests/http_success.ores\n' >> "$repo/ci/oreslang-files.txt"
+check_bad
+git -C "$repo" checkout -- ci/oreslang-files.txt
+: > "$repo/ci/oreslang-files.txt"
+check_bad
+git -C "$repo" checkout -- ci/oreslang-files.txt
+# The mode gate also catches missing tracked non-Oreslang runner inputs.
+mkdir -p "$repo/docs"
+printf 'tracked docs\n' > "$repo/docs/gate.txt"
+git -C "$repo" add docs/gate.txt
 check_ok
-printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=15\n'
+rm "$repo/docs/gate.txt"
+check_bad
+git -C "$repo" checkout -- docs/gate.txt
+touch "$repo/docs/hidden.Out"
+git -C "$repo" add docs/hidden.Out
+check_bad
+git -C "$repo" rm -q -f docs/hidden.Out
+newline_oracle="$(printf 'tests/hidden\nname.out')"
+touch "$repo/$newline_oracle"
+git -C "$repo" add -- "$newline_oracle"
+check_bad
+git -C "$repo" rm -q -f -- "$newline_oracle"
+check_ok
+printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=24\n'

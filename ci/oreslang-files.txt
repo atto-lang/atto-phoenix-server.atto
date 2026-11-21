@@ -1,5 +1,8 @@
 src/main.ores
 tests/http_bounds.ores
 tests/http_disconnect.ores
+tests/http_framing.ores
+tests/http_headers.ores
 tests/http_negative.ores
+tests/http_routes.ores
 tests/http_success.ores

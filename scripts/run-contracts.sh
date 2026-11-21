@@ -34,6 +34,7 @@ git -C "$compiler" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 command -v mvn >/dev/null 2>&1 || { echo "mvn is required" >&2; exit 69; }
 command -v setsid >/dev/null 2>&1 || { echo "setsid is required for bounded server teardown" >&2; exit 69; }
 command -v timeout >/dev/null 2>&1 || { echo "timeout is required for bounded guest tests" >&2; exit 69; }
+command -v python3 >/dev/null 2>&1 || { echo "python3 is required for exact byte HTTP acceptance tests" >&2; exit 69; }
 bash "$root/ci/check-fixtures.sh"
 
 echo "compiler_ref=$source_ref"
@@ -130,4 +131,16 @@ done < "$root/ci/contracts.tsv"
 kill -0 "$server_pid"
 grep -Fq 'Oreslang Phoenix-style demo listening on loopback:8082' "$server_log"
 [[ "$total" -gt 0 && "$passed" -eq "$total" ]]
-echo "$passed/$total Phoenix-style HTTP contracts passed"
+python3 -I -B "$root/ci/test-http-wire-probe.py"
+# Do not conflate native .ores client results with this independent Python TCP probe.
+# A timeout, wrong response body, or silent connection is a failed acceptance.
+timeout --signal=TERM --kill-after=5s 90s python3 -I -B "$root/ci/http-wire-probe.py"
+python3 -I -B "$root/ci/test-http-slow-client-probe.py"
+# Absolute bounded stall checks: an incomplete header/body must not stay
+# open indefinitely merely because the peer periodically trickles bytes.
+timeout --signal=TERM --kill-after=5s 30s python3 -I -B "$root/ci/http-slow-client-probe.py"
+python3 -I -B "$root/ci/test-http-capacity-probe.py"
+# This strict native gate requires real 503 evidence; 80 TCP connects alone
+# cannot prove 64-slot HTTP admission or backpressure semantics.
+timeout --signal=TERM --kill-after=5s 45s python3 -I -B "$root/ci/http-capacity-probe.py"
+echo "$passed/$total Phoenix-style HTTP contracts passed, wire and saturation gates passed"

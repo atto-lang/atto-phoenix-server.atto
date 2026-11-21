@@ -1,0 +1,64 @@
+// HTTP/1.1 header parser adversarial contract. A malformed or ambiguous
+// request MUST NOT become a successful /echo exchange. Connection close
+// without a status line is an acceptable rejection. This does not validate
+// an upstream proxy and has no native PASS until the actual guest executes.
+pub async routine main(): int {
+  // HTTP/1.1 requires exactly one valid Host field.
+  val missing_host = await network.connect_async("127.0.0.1", 8082);
+  await missing_host.write_text_async(
+    "POST /echo HTTP/1.1\r\nContent-Type: text/plain\r\nContent-Length: 4\r\nConnection: close\r\n\r\nping"
+  );
+  val missing_host_status = await missing_host.read_line_async();
+  await missing_host.close_async();
+  if !missing_host_status.is_none() &&
+     missing_host_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL HTTP/1.1 missing Host admitted");
+    return 1;
+  fi
+
+  val duplicate_host = await network.connect_async("127.0.0.1", 8082);
+  await duplicate_host.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nHost: example.invalid\r\nContent-Type: text/plain\r\nContent-Length: 4\r\nConnection: close\r\n\r\nping"
+  );
+  val duplicate_host_status = await duplicate_host.read_line_async();
+  await duplicate_host.close_async();
+  if !duplicate_host_status.is_none() &&
+     duplicate_host_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL duplicate Host admitted");
+    return 1;
+  fi
+
+  // Nondecimal, negative, and inconsistent message lengths cannot be
+  // reinterpreted as successful text echoes.
+  val nondecimal_length = await network.connect_async("127.0.0.1", 8082);
+  await nondecimal_length.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\nContent-Length: NaN\r\nConnection: close\r\n\r\nping"
+  );
+  val nondecimal_status = await nondecimal_length.read_line_async();
+  await nondecimal_length.close_async();
+  if !nondecimal_status.is_none() &&
+     nondecimal_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL nonnumeric Content-Length admitted");
+    return 1;
+  fi
+
+  val negative_length = await network.connect_async("127.0.0.1", 8082);
+  await negative_length.write_text_async(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\nContent-Length: -1\r\nConnection: close\r\n\r\nping"
+  );
+  val negative_status = await negative_length.read_line_async();
+  await negative_length.close_async();
+  if !negative_status.is_none() &&
+     negative_status.unwrap().starts_with("HTTP/1.1 200"); then
+    stdio.println("FAIL negative Content-Length admitted");
+    return 1;
+  fi
+
+  val String hello = await http.get_text_async("http://127.0.0.1:8082/hello");
+  if hello != "hello from oreslang"; then
+    stdio.println("FAIL listener unresponsive after header parser probes");
+    return 1;
+  fi
+  stdio.println("PASS Phoenix-style HTTP header parser safety and recovery");
+  return 0;
+}
