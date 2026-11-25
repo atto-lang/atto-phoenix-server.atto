@@ -1,7 +1,6 @@
 name: Exact Phoenix-style HTTP contracts
 on:
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,52 +10,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  http-contracts:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oreslang-jdk25]
-    timeout-minutes: 25
+  fixture-structure:
+    # Pull requests run only hermetic host-side validation on ephemeral runners.
+    # No private compiler checkout or native guest execution is available here.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Verify source-candidate metadata and inventory
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact checkout and source metadata
         shell: bash
+        env:
+          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          expected="$(tr -d '[:space:]' < SOURCE_REF)"
+          [[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]]
+          test -z "$(git status --porcelain --untracked-files=all)"
+          [[ -f SOURCE_REF && ! -L SOURCE_REF ]]
+          [[ "$(wc -c < SOURCE_REF)" -eq 41 ]]
+          expected="$(cat SOURCE_REF)"
           [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
           grep -Fxq 'status=source-candidate' demo-status.txt
           grep -Fxq 'execution=pending-exact-head' demo-status.txt
           grep -Fxq 'network=loopback-only' demo-status.txt
           grep -Fxq "compiler-ref=$expected" demo-status.txt
-          actual="$RUNNER_TEMP/oreslang-files.txt"
-          find src tests -type f -name '*.ores' -print | LC_ALL=C sort > "$actual"
-          diff -u ci/oreslang-files.txt "$actual"
-          test -z "$(find src tests -type l -name '*.ores' -print -quit)"
-          awk -F '\t' '!/^#/ && NF {print $2}' ci/contracts.tsv | LC_ALL=C sort > "$RUNNER_TEMP/declared.txt"
-          find tests -maxdepth 1 -type f -name '*.ores' -print | LC_ALL=C sort > "$RUNNER_TEMP/tests.txt"
-          diff -u "$RUNNER_TEMP/declared.txt" "$RUNNER_TEMP/tests.txt"
-      - name: Check runner syntax
-        run: bash -n scripts/run-contracts.sh && bash -n ci/check-fixtures.sh
-      - name: Test fixture validator adversarially (host only)
-        run: bash ci/test-fixtures.sh
-      - name: Validate exact source and oracle inventory (structural only)
-        run: bash ci/check-fixtures.sh
-      - name: Require exact local compiler checkout
-        shell: bash
+          echo "demo_head=$EXPECTED_DEMO_SHA"
+          echo "demo_tree=$(git rev-parse HEAD^{tree})"
+      - name: Validate shell syntax
         run: |
           set -euo pipefail
-          : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
-          expected="$(tr -d '[:space:]' < SOURCE_REF)"
-          test "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" = "$expected"
-          test -z "$(git -C "$ORESLANG_SOURCE_DIR" status --porcelain --untracked-files=all)"
-          echo "demo_head=$(git rev-parse HEAD)"
-          echo "demo_tree=$(git rev-parse HEAD^{tree})"
-          echo "compiler_head=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)"
-          echo "compiler_tree=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD^{tree})"
-      - name: Compile and execute loopback HTTP contracts
-        run: bash scripts/run-contracts.sh
+          for script in scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh; do bash -n "$script"; done
+      - name: Test fixture policy adversarially (host only)
+        run: bash ci/test-fixtures.sh
+      - name: Validate indexed Oreslang sources and oracles (host only)
+        run: bash ci/check-fixtures.sh
+      - name: Record structural-only evidence
+        run: echo 'NOT_EXECUTED - no compiler or native Oreslang guest invoked'
+
