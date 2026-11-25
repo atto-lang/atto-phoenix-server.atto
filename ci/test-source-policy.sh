@@ -102,4 +102,35 @@ case_error="$(SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE=strict bash "$r
 }
 git -C "$test_repo" rm -q -f src/uppercase.ATTO
 check_ok
-printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS isolated_legacy_and_case_rejections=true\n'
+# A failing git ls-files previously yielded a false PASS with tracked_files=0.
+# Require the specific inventory failure, not an unrelated rejection.
+mock_dir="$(mktemp -d)"
+real_git="$(command -v git)"
+cat > "$mock_dir/git" <<MOCK
+#!/usr/bin/env bash
+if [[ "\${1:-}" == 'ls-files' ]]; then exit 86; fi
+exec "$real_git" "\$@"
+MOCK
+chmod 700 "$mock_dir/git"
+inventory_error="$(PATH="$mock_dir:$PATH" SOURCE_POLICY_ROOT="$test_repo" \
+  bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted failed git ls-files inventory' >&2; exit 1;
+}
+[[ "$inventory_error" == *'POLICY_FAILURE: cannot list tracked sources'* ]] || {
+  echo "TEST_FAILURE: wrong Git inventory failure: $inventory_error" >&2; exit 1;
+}
+rm -rf -- "$mock_dir"
+check_ok
+
+# A successful but empty Git inventory must never prove the source policy.
+empty_repo="$(mktemp -d)"
+git -C "$empty_repo" init -q
+empty_error="$(SOURCE_POLICY_ROOT="$empty_repo" bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted empty Git index' >&2; exit 1;
+}
+[[ "$empty_error" == *'POLICY_FAILURE: empty tracked-source inventory'* ]] || {
+  echo "TEST_FAILURE: wrong empty-inventory failure: $empty_error" >&2; exit 1;
+}
+rm -rf -- "$empty_repo"
+check_ok
+printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS isolated_legacy_and_case_rejections=true inventory_fail_closed=2\n'
