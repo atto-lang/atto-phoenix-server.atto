@@ -41,3 +41,7 @@ AttoLang is the canonical project name; new source, examples and documentation u
 ## Reviewed native dispatcher
 
 See [docs/PHOENIX_NATIVE_DISPATCH.md](docs/PHOENIX_NATIVE_DISPATCH.md). Its allowlist is empty; the private runner must remain disabled unless independently approved and externally protected. No native execution is attested by the dispatcher bootstrap.
+
+## LiveView host reference
+
+See [liveview/README.md](liveview/README.md) for the independent loopback-only Node protocol reference and tests. This is not a native AttoLang guest or Phoenix compatibility claim. Native actor transport and compiler parity remain separate gates.
