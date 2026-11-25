@@ -48,4 +48,15 @@ git -C "$repo" add tests/masked.out
 check_bad
 git -C "$repo" rm -q -f tests/masked.out
 check_ok
-printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=7\n'
+# Tracked output oracles outside the declared contract are forbidden.
+touch "$repo/tests/undeclared.out"
+git -C "$repo" add tests/undeclared.out
+check_bad
+git -C "$repo" rm -q -f tests/undeclared.out
+mkdir -p "$repo/other"
+touch "$repo/other/stray.out"
+git -C "$repo" add other/stray.out
+check_bad
+git -C "$repo" rm -q -f other/stray.out
+check_ok
+printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=9\n'
