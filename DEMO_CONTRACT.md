@@ -64,7 +64,7 @@ No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim fol
 - Unreviewed pull-request code runs **host-only structural checks** on an
   ephemeral GitHub-hosted runner. It must never run the private compiler or
   execute guest code with access to a persistent trusted compiler checkout.
-- The exact native runtime job is **manual workflow_dispatch from `main` only** and needs
+- Native execution requires a separately installed reviewed dispatcher (**not provided by this branch**) and needs
   an explicit, fully qualified reviewed demo commit SHA. Runner scripts require
   both the demo worktree and the pinned compiler worktree to be clean at their
   exact expected commits.
@@ -75,7 +75,9 @@ No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim fol
 - Use a dedicated runner with minimal network access and no unrelated secrets.
   Compiler checkouts must not be fetched, copied, or mirrored into another
   organization unless that private-source transfer is independently authorized.
-- The host fixture gate rejects tracked symlinks and gitlinks anywhere in the\n  Git index, not merely under source and test directories. This does not by\n  itself guarantee that a manually approved guest is safe to execute.\n- A queued, blocked, zero-step, skipped, or host-only green job is **not** native
+- The host fixture gate rejects tracked symlinks and gitlinks anywhere in the
+  Git index, not merely under source and test directories. This does not by
+  itself guarantee that a manually approved guest is safe to execute.\n- A queued, blocked, zero-step, skipped, or host-only green job is **not** native
   compiler/guest execution proof. Keep `execution=pending-exact-head` until a
   complete exact-head compile and actual HTTP client/server run succeeds.
 
