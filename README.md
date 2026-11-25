@@ -37,3 +37,9 @@ This is a statement of intended scope, not a claim of completed implementation o
 AttoLang is the canonical project name; new source, examples and documentation use `.atto` and the `atto-lang` repository organization. This README defines scope, not feature readiness.
 
 **Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
+
+## Historical HTTP candidate (migration in progress)
+
+This branch preserves the original `.ores` loopback HTTP candidate for integration with the canonical `.atto` migration in PR #20. It defines GET /hello, POST /echo, 404/405/415 contracts, a 16 KiB body bound, a five-second deadline and a 127.0.0.1:8082 listener. These are source-level intentions, not verified runtime behavior. See `DEMO_CONTRACT.md` and `demo-status.txt` for the historical scope and evidence boundary. Do not treat this legacy candidate as an accepted AttoLang implementation.
+
+The historical compiler pin is recorded in `SOURCE_REF`; the legacy compiler is not fetched or executed by automatic PR jobs. Only ephemeral host-side fixture checks run here. Native execution requires a separately reviewed exact-SHA dispatcher and an authorized isolated compiler checkout; no private compiler source may be mirrored without authorization. See [legacy security incident #22](https://github.com/ores-truffle-oreslang/oreslang-platform-conformance/issues/22). No Phoenix/Plug/BEAM compatibility, production readiness, or native execution is attested.
