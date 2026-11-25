@@ -17,6 +17,15 @@ if [[ -f SOURCE_REF ]]; then
 fi
 mode="${SOURCE_POLICY_MODE:-strict}"
 [[ "$mode" == strict || "$mode" == rest-legacy ]] || { echo "POLICY_FAILURE: unknown mode" >&2; exit 2; }
+# Process substitution hides the exit status of git ls-files. Materialize a
+# complete inventory before enforcing policy, and reject failed/empty output.
+inventory="$(mktemp)" || { echo 'POLICY_FAILURE: cannot create source inventory' >&2; exit 2; }
+trap 'rm -f -- "$inventory"' EXIT
+if ! git ls-files -z --cached > "$inventory"; then
+  echo 'POLICY_FAILURE: cannot list tracked sources' >&2
+  exit 2
+fi
+[[ -s "$inventory" ]] || { echo 'POLICY_FAILURE: empty tracked-source inventory' >&2; exit 2; }
 count=0
 while IFS= read -r -d '' path; do
   count=$((count+1))
@@ -57,7 +66,7 @@ while IFS= read -r -d '' path; do
       exit 2
     fi
   fi
-done < <(git ls-files -z --cached)
+done < "$inventory"
 printf 'SOURCE_POLICY_STRUCTURAL_PASS tracked_files=%s mode=%s\n' "$count" "$mode"
 if [[ "$mode" == rest-legacy ]]; then
   echo 'LEGACY_PYTHON_NONCOMPLIANT: complete Rust replacement remains required'

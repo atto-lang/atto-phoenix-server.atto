@@ -23,15 +23,44 @@ inventory="$(mktemp -d)" || fail 'cannot create temporary Git inventory'
 trap 'rm -rf -- "$inventory"' EXIT
 git -C "$repo" ls-files --stage -z > "$inventory/modes" || fail 'cannot list indexed file modes'
 [[ -s "$inventory/modes" ]] || fail 'empty indexed file-mode inventory'
-# Reject all symlink/gitlink index modes rather than checking only src/tests/ci.
-# A reviewed commit's tree hash does not imply its entries are safe to execute.
+# Never trust a clean-looking index alone: compare the full committed HEAD tree
+# with *every* indexed path/mode/blob and independently hash working-tree bytes.
+# git status may be stale or overridden by fsmonitor, index flags, or metadata
+# races. Using --no-filters also rules out local autocrlf/smudge alteration.
+git -C "$repo" ls-tree -r -z --full-tree HEAD > "$inventory/head-tree" ||
+  fail 'cannot list reviewed HEAD tree'
+[[ -s "$inventory/head-tree" ]] || fail 'empty reviewed HEAD tree'
+: > "$inventory/index-normalized"
+count=0
 while IFS= read -r -d '' entry; do
-  mode="${entry%% *}"
+  [[ "$entry" == *$'\t'* ]] || fail 'malformed indexed entry'
+  fields="${entry%%$'\t'*}"
+  path="${entry#*$'\t'}"
+  read -r mode blob stage <<< "$fields"
   case "$mode" in
     100644|100755) ;;
     *) fail "non-regular indexed Git entry: mode=$mode" ;;
   esac
+  [[ "$blob" =~ ^[a-f0-9]{40}$ && "$stage" == 0 && -n "$path" ]] ||
+    fail 'malformed or unmerged indexed entry'
+  count=$((count+1))
+  (( count <= 50000 )) || fail 'tracked file budget exceeded'
+  [[ -f "$repo/$path" && ! -L "$repo/$path" ]] ||
+    fail "reviewed working-tree file missing or not regular: $path"
+  actual_blob="$(git -C "$repo" hash-object --no-filters -- "$path")" ||
+    fail "cannot hash working-tree bytes: $path"
+  [[ "$actual_blob" == "$blob" ]] ||
+    fail "working-tree blob differs from Git index: $path"
+  printf '%s blob %s\t%s\0' "$mode" "$blob" "$path" >> "$inventory/index-normalized"
 done < "$inventory/modes"
+# NUL-delimited sort preserves paths with whitespace/newlines, and lets Git's
+# sorted traversal order differ without weakening exact tree/index equality.
+LC_ALL=C sort -z "$inventory/head-tree" > "$inventory/head-sorted" ||
+  fail 'cannot sort reviewed HEAD tree'
+LC_ALL=C sort -z "$inventory/index-normalized" > "$inventory/index-sorted" ||
+  fail 'cannot sort indexed entries'
+cmp -s "$inventory/head-sorted" "$inventory/index-sorted" ||
+  fail 'indexed paths, modes or blobs differ from reviewed HEAD tree'
 
 # Git clean/status may conceal content drift with assume-unchanged or
 # skip-worktree index flags. Fail rather than relying on that false negative.
@@ -50,5 +79,5 @@ status_output="$(git -C "$repo" status --porcelain=v1 --ignored --untracked-file
   fail 'cannot establish Git checkout cleanliness'
 [[ -z "$status_output" ]] ||
   fail 'demo checkout has tracked, staged, untracked or ignored changes'
-printf 'NATIVE_HEAD_ADMITTED demo_sha=%s demo_tree=%s clean=true\n' "$actual_head" "$actual_tree"
+printf 'NATIVE_HEAD_ADMITTED demo_sha=%s demo_tree=%s clean=true tracked_bytes_verified=%s\n' "$actual_head" "$actual_tree" "$count"
 echo 'SOURCE_PREFLIGHT_ONLY: native AttoLang guest NOT_EXECUTED'
