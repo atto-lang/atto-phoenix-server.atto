@@ -71,13 +71,14 @@ connection, pending-byte and idle-time budgets are enforced. The browser now
 requests the required `ores-liveview-v1` WebSocket subprotocol and selects
 `ws:`/`wss:` based on the document scheme.
 
-The **optional** Chromium test (`tests/browser-e2e.py`) covers browser DOM clicks,
-two-tab broadcasts and reload. It requires Python Playwright and an unrestricted
+The **optional** Chromium test (`tests/browser-e2e.mjs`) covers browser DOM clicks,
+two-tab broadcasts and reload. It requires Node Playwright and an unrestricted
 loopback browser network. Run it separately:
 
 ```sh
-python -m playwright install chromium
-python tests/browser-e2e.py
+npm install --no-save --no-package-lock playwright
+npx playwright install chromium
+node tests/browser-e2e.mjs
 ```
 
 Browser automation can be blocked by environment policy even if the Node socket
