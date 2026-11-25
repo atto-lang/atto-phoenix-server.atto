@@ -1,0 +1,58 @@
+# Public compiler and public demo, isolated ephemeral runner; no secrets/private runner.
+name: Public pinned Atto HTTP guest contracts
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  public-http-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          path: demo
+      - name: Verify public compiler pin and exact demo identity
+        id: pin
+        shell: bash
+        env:
+          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C demo rev-parse HEAD)" = "$EXPECTED_DEMO_SHA"
+          test "$(wc -c < demo/SOURCE_REF)" -eq 41
+          test "$(cat demo/SOURCE_REF)" = 6d8eb70048eafc9a84c5aebe9c1bb06104f16e76
+          echo "tree=$(git -C demo rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+          echo "sha=$(cat demo/SOURCE_REF)" >> "$GITHUB_OUTPUT"
+      - name: Clone public compiler without credentials
+        shell: bash
+        env:
+          COMPILER_SHA: ${{ steps.pin.outputs.sha }}
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          set -euo pipefail
+          git init -q compiler
+          git -C compiler remote add origin https://github.com/atto-lang/atto-source.java.git
+          git -C compiler fetch --depth=1 origin "$COMPILER_SHA"
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = "$COMPILER_SHA"
+          test -z "$(git -C compiler status --porcelain --untracked-files=all)"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Compile and run actual loopback HTTP guests
+        shell: bash
+        working-directory: demo
+        env:
+          ATTOLANG_SOURCE_DIR: ${{ github.workspace }}/compiler
+          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_DEMO_TREE: ${{ steps.pin.outputs.tree }}
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=15s 20m bash scripts/run-contracts.sh

@@ -1,6 +1,10 @@
-name: Exact Phoenix-style HTTP contracts
+# Unreviewed PRs must never execute private source on persistent runners.
+name: AttoLang Phoenix HTTP source integrity
 on:
   pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,43 +14,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fixture-structure:
-    # Pull requests run only hermetic host-side validation on ephemeral runners.
-    # No private compiler checkout or native guest execution is available here.
+  structural-only:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
-      - name: Verify exact checkout and source metadata
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Bind checked-out source to exact head
         shell: bash
         env:
-          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$(git rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]]
-          test -z "$(git status --porcelain --untracked-files=all)"
-          [[ -f SOURCE_REF && ! -L SOURCE_REF ]]
-          [[ "$(wc -c < SOURCE_REF)" -eq 41 ]]
-          expected="$(cat SOURCE_REF)"
-          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
-          grep -Fxq 'status=source-candidate' demo-status.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_DEMO_SHA"
+          printf 'demo_head=%s\n' "$(git rev-parse HEAD)"
+          printf 'demo_tree=%s\n' "$(git rev-parse HEAD^{tree})"
+      - name: Source and oracle integrity (no guest execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in ci/*.sh scripts/run-contracts.sh; do bash -n "$script"; done
+          bash ci/check-native-abi.sh
+          bash ci/test-native-abi.sh
+          bash ci/check-echo-mime.sh
+          bash ci/test-echo-mime.sh
+          bash ci/test-native-head-gate.sh
+          bash ci/check-fixtures.sh
+          bash ci/test-fixtures.sh
+          bash ci/test-source-policy.sh
+          bash ci/source-policy.sh
+          test "$(cat SOURCE_REF)" = "6d8eb70048eafc9a84c5aebe9c1bb06104f16e76"
           grep -Fxq 'execution=pending-exact-head' demo-status.txt
-          grep -Fxq 'network=loopback-only' demo-status.txt
-          grep -Fxq "compiler-ref=$expected" demo-status.txt
-          echo "demo_head=$EXPECTED_DEMO_SHA"
-          echo "demo_tree=$(git rev-parse HEAD^{tree})"
-      - name: Validate shell syntax
-        run: |
-          set -euo pipefail
-          for script in scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh; do bash -n "$script"; done
-      - name: Test fixture policy adversarially (host only)
-        run: bash ci/test-fixtures.sh
-      - name: Validate indexed Oreslang sources and oracles (host only)
-        run: bash ci/check-fixtures.sh
-      - name: Record structural-only evidence
-        run: echo 'NOT_EXECUTED - no compiler or native Oreslang guest invoked'
-
+          echo 'HOST_STRUCTURAL_ONLY: AttoLang compiler/guest NOT_EXECUTED'

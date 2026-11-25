@@ -1,26 +1,36 @@
-// Phoenix-style ergonomics demo implemented on the current native Oreslang
+// Phoenix-style ergonomics demo implemented on the current native AttoLang
 // HTTP actor boundary. This is NOT Phoenix/Plug/BEAM compatibility.
 
 define isoactor RequestHandler as
   receive(ActorMail<String> mail): void {
     val exchange = http.claim(mail.value);
 
-    if exchange.target == "/hello"; then
-      if exchange.method != "GET"; then
+    if exchange.target eq "/healthz"; then
+      if exchange.method neq "GET"; then
         await exchange.respond(405, "text/plain; charset=utf-8", "method not allowed");
         return;
       fi
-      await exchange.respond(200, "text/plain; charset=utf-8", "hello from oreslang");
+      await exchange.respond(200, "text/plain; charset=utf-8", "ok");
       return;
     fi
 
-    if exchange.target == "/echo"; then
-      if exchange.method != "POST"; then
+    if exchange.target eq "/hello"; then
+      if exchange.method neq "GET"; then
+        await exchange.respond(405, "text/plain; charset=utf-8", "method not allowed");
+        return;
+      fi
+      await exchange.respond(200, "text/plain; charset=utf-8", "hello from attolang");
+      return;
+    fi
+
+    if exchange.target eq "/echo"; then
+      if exchange.method neq "POST"; then
         await exchange.respond(405, "text/plain; charset=utf-8", "method not allowed");
         return;
       fi
       val String content_type = exchange.header("Content-Type");
-      if !(content_type == "text/plain" || content_type.starts_with("text/plain;")); then
+      // V1 accepts only canonical UTF-8 plain text; never trust MIME prefixes.
+      if !(content_type eq "text/plain" || content_type eq "text/plain; charset=utf-8"); then
         await exchange.respond(415, "text/plain; charset=utf-8", "text/plain required");
         return;
       fi
@@ -39,10 +49,10 @@ pub async routine main(): int {
   // bodies, and a 5s request deadline. Public bind is intentionally impossible.
   val handler = http.handler("RequestHandler").pooled(16);
   val server = http.listen("127.0.0.1", 8082, 64, 16384, 5000);
-  stdio.println("Oreslang Phoenix-style demo listening on loopback:8082");
+  stdio.println("AttoLang Phoenix-style demo listening on loopback:8082");
   loop {
     val exchange = await server.accept();
-    handler.dispatch(exchange);
+    handler.dispatch(rt mut borrow exchange);
   }
   return 0;
 }

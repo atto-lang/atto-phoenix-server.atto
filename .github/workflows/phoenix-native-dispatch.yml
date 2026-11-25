@@ -1,0 +1,185 @@
+# Safe default-branch bootstrap: no private source or guest runs in PR workflows.
+# Activation requires both a reviewed (PR number, exact SHA) entry on main
+# and externally configured protected-environment approval.
+name: Phoenix reviewed exact-SHA native dispatch
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Open same-repository Phoenix candidate PR number"
+        required: true
+        type: string
+      candidate_sha:
+        description: "Full 40-character reviewed PR head SHA"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: phoenix-native-dispatch
+  cancel-in-progress: false
+
+jobs:
+  authorize-and-structure:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      candidate_sha: ${{ steps.authorize.outputs.candidate_sha }}
+      candidate_tree: ${{ steps.structure.outputs.candidate_tree }}
+    steps:
+      - name: Checkout trusted controller from exact main commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          path: controller
+      - name: Authorize exact PR head using reviewed main allowlist
+        id: authorize
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]]
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$(git -C controller rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ -z "$(git -C controller status --porcelain --untracked-files=all)" ]]
+          [[ -f controller/ci/phoenix-native-allowlist.tsv ]]
+          [[ ! -L controller/ci/phoenix-native-allowlist.tsv ]]
+          # Empty by default; a reviewed main-branch change must explicitly
+          # authorize the PR number and its immutable head SHA.
+          grep -Fqx -- "$PR_NUMBER"$'\t'"$CANDIDATE_SHA" controller/ci/phoenix-native-allowlist.tsv || {
+            echo 'DENIED: PR/head tuple not approved in main' >&2
+            exit 1
+          }
+          response="$(curl --fail --silent --show-error --retry 2 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          jq -e --arg sha "$CANDIDATE_SHA" --arg repo "$GITHUB_REPOSITORY" \
+            --argjson number "$PR_NUMBER" \
+            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo and .base.ref == "main"' \
+            <<<"$response" >/dev/null || {
+            echo 'DENIED: SHA is not the current open same-repo PR head' >&2
+            exit 1
+          }
+          echo "candidate_sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
+          echo "APPROVED_EXACT_PR_HEAD pr=$PR_NUMBER sha=$CANDIDATE_SHA"
+      - name: Checkout exactly approved candidate (unprivileged host)
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          ref: ${{ steps.authorize.outputs.candidate_sha }}
+          path: candidate
+      - name: Run source policy and fixture negatives without a compiler
+        id: structure
+        shell: bash
+        env:
+          EXPECTED_DEMO_SHA: ${{ steps.authorize.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git -C candidate rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]]
+          [[ -z "$(git -C candidate status --porcelain --untracked-files=all)" ]]
+          [[ -f candidate/SOURCE_REF && ! -L candidate/SOURCE_REF ]]
+          [[ "$(wc -c < candidate/SOURCE_REF)" -eq 41 ]]
+          [[ "$(cat candidate/SOURCE_REF)" == "6d8eb70048eafc9a84c5aebe9c1bb06104f16e76" ]]
+          SOURCE_POLICY_ROOT="$GITHUB_WORKSPACE/candidate" \
+            SOURCE_POLICY_MODE=strict EXPECTED_DEMO_SHA="$EXPECTED_DEMO_SHA" \
+            bash controller/ci/source-policy.sh
+          # Verify *every* tracked Git entry from the trusted controller,
+          # independently of any candidate-supplied validation script.
+          inventory="$(mktemp)"
+          trap 'rm -f -- "$inventory"' EXIT
+          git -C candidate ls-files --stage -z > "$inventory"
+          test -s "$inventory"
+          while IFS= read -r -d '' entry; do
+            mode="${entry%% *}"
+            rel="${entry#*$'\t'}"
+            case "$mode" in
+              100644|100755) ;;
+              *) echo "DENIED: unsafe indexed entry mode $mode" >&2; exit 1 ;;
+            esac
+            [[ -f "candidate/$rel" && ! -L "candidate/$rel" ]] || {
+              echo "DENIED: symlink or missing indexed file" >&2
+              exit 1
+            }
+          done < "$inventory"
+          echo "candidate_tree=$(git -C candidate rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+          for script in candidate/scripts/run-contracts.sh candidate/ci/check-fixtures.sh candidate/ci/test-fixtures.sh; do
+            bash -n "$script"
+          done
+          bash candidate/ci/test-fixtures.sh
+          bash candidate/ci/check-fixtures.sh
+          echo "HOST_STRUCTURAL_VERIFIED sha=$EXPECTED_DEMO_SHA"
+          echo 'NOT_EXECUTED: no native Oreslang compiler or guest invoked'
+
+  native-http-contracts:
+    needs: authorize-and-structure
+    # FAIL CLOSED when repository/environment approval protection is unavailable.
+    # An independent admin must verify protection and explicitly enable the
+    # repository variable only after reviews, branch policy, and runner isolation.
+    # The variable is a circuit breaker, NOT a replacement for approvals.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.PHOENIX_NATIVE_GUEST_ENABLE == 'true' }}
+    environment:
+      name: phoenix-exact-guest-review
+    runs-on: [self-hosted, linux, x64, oreslang-jdk25]
+    timeout-minutes: 25
+    env:
+      EXPECTED_DEMO_SHA: ${{ needs.authorize-and-structure.outputs.candidate_sha }}
+      EXPECTED_DEMO_TREE: ${{ needs.authorize-and-structure.outputs.candidate_tree }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+    steps:
+      - name: Checkout exactly approved candidate on isolated trusted runner
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          ref: ${{ needs.authorize-and-structure.outputs.candidate_sha }}
+      - name: Revalidate exact PR head and compiler before guest execution
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]]
+          [[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]]
+          [[ "$EXPECTED_DEMO_TREE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse 'HEAD^{tree}')" == "$EXPECTED_DEMO_TREE" ]]
+          [[ -z "$(git status --porcelain --untracked-files=all)" ]]
+          [[ -f SOURCE_REF && ! -L SOURCE_REF ]]
+          [[ "$(wc -c < SOURCE_REF)" -eq 41 ]]
+          [[ "$(cat SOURCE_REF)" == "6d8eb70048eafc9a84c5aebe9c1bb06104f16e76" ]]
+          response="$(curl --fail --silent --show-error --retry 2 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          jq -e --arg sha "$EXPECTED_DEMO_SHA" --arg repo "$GITHUB_REPOSITORY" \
+            --argjson number "$PR_NUMBER" \
+            '.number == $number and .state == "open" and .head.sha == $sha and .head.repo.full_name == $repo and .base.repo.full_name == $repo and .base.ref == "main"' \
+            <<<"$response" >/dev/null
+          : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
+          [[ "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" == "6d8eb70048eafc9a84c5aebe9c1bb06104f16e76" ]]
+          [[ -z "$(git -C "$ORESLANG_SOURCE_DIR" status --porcelain --untracked-files=all)" ]]
+          echo "demo_head=$EXPECTED_DEMO_SHA"
+          echo "demo_tree=$(git rev-parse HEAD^{tree})"
+          echo "compiler_head=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)"
+          echo "compiler_tree=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD^{tree})"
+      - name: Set up pinned Java toolchain
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Compile and execute real loopback HTTP contracts
+        shell: bash
+        run: bash scripts/run-contracts.sh

@@ -6,12 +6,18 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$root"
 fail() { printf 'FIXTURE_POLICY_FAILURE: %s\n' "$*" >&2; exit 2; }
 [[ "$(git rev-parse --show-toplevel)" == "$root" ]] || fail 'repository root mismatch'
-for file in ci/contracts.tsv ci/oreslang-files.txt; do
+for file in ci/contracts.tsv ci/atto-files.txt; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing or symlinked $file"
 done
 # The entire Git index is the authority: reject staged symlinks and gitlinks
 # anywhere, including workflow and runner scripts. Checking only src/tests/ci
 # allows a tracked link elsewhere to escape the reviewed worktree boundary.
+tmp="$(mktemp -d)"
+trap 'rm -rf -- "$tmp"' EXIT
+git ls-files --stage -z > "$tmp/index" || fail 'cannot list index'
+[[ -s "$tmp/index" ]] || fail 'empty index'
+git ls-files -z > "$tmp/paths" || fail 'cannot list tracked paths'
+[[ -s "$tmp/paths" ]] || fail 'empty paths'
 while IFS= read -r -d '' entry; do
   mode="${entry%% *}"
   path="${entry#*$'\t'}"
@@ -20,15 +26,12 @@ while IFS= read -r -d '' entry; do
     *) fail "unsafe indexed mode $mode: $path" ;;
   esac
   [[ -f "$path" && ! -L "$path" ]] || fail "missing/symlinked tracked entry: $path"
-done < <(git ls-files --stage -z)
-
-tmp="$(mktemp -d)"
-trap 'rm -rf -- "$tmp"' EXIT
+done < "$tmp/index"
 awk -F '\t' '
   /^#/ {next}
   {
     if (NF != 3 || $1 !~ /^[a-z][a-z0-9_-]*$/ ||
-        $2 !~ /^tests\/[a-z0-9_]+\.ores$/ ||
+        $2 !~ /^tests\/[a-z0-9_]+\.atto$/ ||
         $3 !~ /^tests\/[a-z0-9_]+\.out$/ ||
         $3 != substr($2, 1, length($2) - 5) ".out" ||
         names[$1]++ || sources[$2]++ || oracles[$3]++) {
@@ -54,17 +57,18 @@ done < <(cat "$tmp/contract-sources" "$tmp/contract-oracles")
 # all accepted source and oracle filenames use the canonical lowercase form.
 while IFS= read -r -d '' path; do
   case "$path" in
-    *.[Oo][Rr][Ee][Ss])
-      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.ores$ ]] ||
-        fail "noncanonical Oreslang source path: $path" ;;
+    *.[Oo][Rr][Ee][Ss]) fail "legacy .ores guest source forbidden: $path" ;;
+    *.[Aa][Tt][Tt][Oo])
+      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.atto$ ]] ||
+        fail "noncanonical AttoLang source path: $path" ;;
     *.[Oo][Uu][Tt])
       [[ "$path" =~ ^tests/[a-z0-9_]+\.out$ ]] ||
         fail "noncanonical output oracle path: $path" ;;
   esac
-done < <(git ls-files -z)
+done < "$tmp/paths"
 
 # All committed tests must be declared and compiler-check inventory exact.
-git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.ores$' | sort > "$tmp/tracked-tests"
+git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.atto$' | sort > "$tmp/tracked-tests"
 sort "$tmp/contract-sources" > "$tmp/contract-tests"
 diff -u "$tmp/contract-tests" "$tmp/tracked-tests" || fail 'unlisted/absent fixture tests'
 
@@ -75,23 +79,23 @@ while IFS= read -r -d '' path; do
   case "$path" in
     *.out) printf '%s\n' "$path" >> "$tmp/all-oracles" ;;
   esac
-done < <(git ls-files -z)
+done < "$tmp/paths"
 LC_ALL=C sort -o "$tmp/all-oracles" "$tmp/all-oracles"
 LC_ALL=C sort "$tmp/contract-oracles" > "$tmp/declared-oracles"
 diff -u "$tmp/declared-oracles" "$tmp/all-oracles" ||
   fail 'unlisted, misplaced or absent expectation oracle'
 
 # Count *every* tracked source; unexpected names and nested sources fail.
-git ls-files -- src tests | grep -E '\.ores$' | sort > "$tmp/tracked-sources"
+git ls-files -- src tests | grep -E '\.atto$' | sort > "$tmp/tracked-sources"
 while IFS= read -r file; do
-  [[ "$file" =~ ^(src|tests)/[a-z0-9_]+\.ores$ ]] || fail "unexpected Oreslang source path: $file"
-  [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked Oreslang source: $file"
+  [[ "$file" =~ ^(src|tests)/[a-z0-9_]+\.atto$ ]] || fail "unexpected AttoLang source path: $file"
+  [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked AttoLang source: $file"
 done < "$tmp/tracked-sources"
-[[ -s "$tmp/tracked-sources" ]] || fail 'no Oreslang source'
-git ls-files | grep -E '\.ores$' | sort > "$tmp/all-sources"
-diff -u "$tmp/all-sources" "$tmp/tracked-sources" || fail 'Oreslang source outside src/tests or unsupported path'
-if ! diff -u ci/oreslang-files.txt "$tmp/tracked-sources"; then
+[[ -s "$tmp/tracked-sources" ]] || fail 'no AttoLang source'
+git ls-files | grep -E '\.atto$' | sort > "$tmp/all-sources"
+diff -u "$tmp/all-sources" "$tmp/tracked-sources" || fail 'AttoLang source outside src/tests or unsupported path'
+if ! diff -u ci/atto-files.txt "$tmp/tracked-sources"; then
   fail 'compiler-check inventory must match exactly, sorted and unique'
 fi
 printf 'FIXTURE_STRUCTURAL_PASS contracts=%s sources=%s\n' "$(wc -l < "$tmp/contract-tests")" "$(wc -l < "$tmp/tracked-sources")"
-echo 'NOT_EXECUTED: no Oreslang compiler/guest invoked'
+echo 'NOT_EXECUTED: no AttoLang compiler/guest invoked'
