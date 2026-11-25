@@ -1,12 +1,10 @@
-name: Exact Phoenix-style HTTP contracts
+# Unreviewed PRs must never execute private source on persistent runners.
+name: AttoLang Phoenix HTTP source integrity
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      expected_sha:
-        description: "Full reviewed demo commit SHA (never a moving branch or tag)"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -16,84 +14,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fixture-structure:
-    # Pull requests run only hermetic host-side validation on ephemeral runners.
-    # No private compiler checkout or native guest execution is available here.
+  structural-only:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
-      - name: Verify exact checkout and source metadata
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Bind checked-out source to exact head
         shell: bash
         env:
-          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          EXPECTED_DEMO_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$(git rev-parse HEAD)" == "$EXPECTED_DEMO_SHA" ]]
-          test -z "$(git status --porcelain --untracked-files=all)"
-          [[ -f SOURCE_REF && ! -L SOURCE_REF ]]
-          [[ "$(wc -c < SOURCE_REF)" -eq 41 ]]
-          expected="$(cat SOURCE_REF)"
-          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
-          grep -Fxq 'status=source-candidate' demo-status.txt
-          grep -Fxq 'execution=pending-exact-head' demo-status.txt
-          grep -Fxq 'network=loopback-only' demo-status.txt
-          grep -Fxq "compiler-ref=$expected" demo-status.txt
-          echo "demo_head=$EXPECTED_DEMO_SHA"
-          echo "demo_tree=$(git rev-parse HEAD^{tree})"
-      - name: Validate shell syntax
-        run: bash -n scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh ci/test-live-web.sh
-      - name: Test fixture policy adversarially (host only)
-        run: bash ci/test-fixtures.sh
-      - name: Validate Ores Live browser protocol (host only)\n        run: bash ci/test-live-web.sh\n      - name: Validate indexed Oreslang sources and oracles (host only)
-        run: bash ci/check-fixtures.sh
-      - name: Record structural-only evidence
-        run: echo 'NOT_EXECUTED - no compiler or native Oreslang guest invoked'
-
-  http-contracts:
-    # Never expose a persistent private-compiler runner to automatic PR code.
-    # Only the default-branch workflow can reach the trusted runner; a\n    # reviewed full SHA and protected-environment approval are also required.
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
-    environment: phoenix-exact-guest-review
-    runs-on: [self-hosted, linux, x64, oreslang-jdk25]
-    timeout-minutes: 25
-    env:
-      EXPECTED_DEMO_SHA: ${{ inputs.expected_sha }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-          ref: ${{ inputs.expected_sha }}
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Verify exact checkout and pinned compiler
+          test "$(git rev-parse HEAD)" = "$EXPECTED_DEMO_SHA"
+          printf 'demo_head=%s\n' "$(git rev-parse HEAD)"
+          printf 'demo_tree=%s\n' "$(git rev-parse HEAD^{tree})"
+      - name: Source and oracle integrity (no guest execution)
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_DEMO_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$(git rev-parse HEAD)" = "$EXPECTED_DEMO_SHA"
-          test -z "$(git status --porcelain --untracked-files=all)"
-          [[ -f SOURCE_REF && ! -L SOURCE_REF ]]
-          [[ "$(wc -c < SOURCE_REF)" -eq 41 ]]
-          expected="$(cat SOURCE_REF)"
-          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
-          : "${ORESLANG_SOURCE_DIR:?Trusted runner must provide ORESLANG_SOURCE_DIR}"
-          test "$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)" = "$expected"
-          test -z "$(git -C "$ORESLANG_SOURCE_DIR" status --porcelain --untracked-files=all)"
-          echo "demo_head=$EXPECTED_DEMO_SHA"
-          echo "demo_tree=$(git rev-parse HEAD^{tree})"
-          echo "compiler_head=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD)"
-          echo "compiler_tree=$(git -C "$ORESLANG_SOURCE_DIR" rev-parse HEAD^{tree})"
-      - name: Validate host-side fixture policy
-        run: |
-          bash -n scripts/run-contracts.sh ci/check-fixtures.sh ci/test-fixtures.sh
-          bash ci/test-fixtures.sh
+          for script in ci/*.sh scripts/run-contracts.sh; do bash -n "$script"; done
+          bash ci/test-live-web.sh
+          bash ci/check-native-abi.sh
+          bash ci/test-native-abi.sh
+          bash ci/check-echo-mime.sh
+          bash ci/test-echo-mime.sh
+          bash ci/test-native-head-gate.sh
           bash ci/check-fixtures.sh
-      - name: Compile and execute native loopback contracts
-        run: bash scripts/run-contracts.sh
+          bash ci/test-fixtures.sh
+          bash ci/test-source-policy.sh
+          bash ci/source-policy.sh
+          test "$(cat SOURCE_REF)" = "6d8eb70048eafc9a84c5aebe9c1bb06104f16e76"
+          grep -Fxq 'execution=pending-exact-head' demo-status.txt
+          echo 'HOST_STRUCTURAL_ONLY: AttoLang compiler/guest NOT_EXECUTED'

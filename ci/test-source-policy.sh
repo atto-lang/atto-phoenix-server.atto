@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# Adversarial hermetic tests of the exact policy gate used in CI.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+test_repo="$(mktemp -d)"
+trap 'rm -rf "$test_repo"' EXIT
+git init -q "$test_repo"
+git -C "$test_repo" config user.name "Policy test"
+git -C "$test_repo" config user.email "policy@example.invalid"
+mkdir -p "$test_repo/docs" "$test_repo/src"
+printf '00_abc\n' > "$test_repo/src/hello.atto"
+printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
+printf '\n' >> "$test_repo/SOURCE_REF"
+git -C "$test_repo" add .
+check_ok() {
+  SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE="${1:-strict}" bash "$root/ci/source-policy.sh" > /dev/null
+}
+check_bad() {
+  if SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE="${1:-strict}" bash "$root/ci/source-policy.sh" > /dev/null 2>&1; then
+    echo "TEST_FAILURE: expected source policy rejection" >&2; exit 1
+  fi
+}
+check_ok
+# Bind a review to a true Git HEAD rather than an arbitrary branch label.
+git -C "$test_repo" commit -qm "source policy fixture"
+source_head="$(git -C "$test_repo" rev-parse HEAD)"
+EXPECTED_DEMO_SHA="$source_head" check_ok
+EXPECTED_DEMO_SHA="main" check_bad
+EXPECTED_DEMO_SHA="$(printf '0%.0s' {1..40})" check_bad
+# CRLF and trailing bytes cannot satisfy the canonical pinned SOURCE_REF.
+printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
+printf '\r\n' >> "$test_repo/SOURCE_REF"
+git -C "$test_repo" add SOURCE_REF
+check_bad
+printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
+printf '\nextra\n' >> "$test_repo/SOURCE_REF"
+git -C "$test_repo" add SOURCE_REF
+check_bad
+printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
+printf '\n' >> "$test_repo/SOURCE_REF"
+git -C "$test_repo" add SOURCE_REF
+EXPECTED_DEMO_SHA="$source_head" check_ok
+mkdir -p "$test_repo/nested space"
+check_ok
+printf 'placeholder\n' > "$test_repo/nested space/unsafe.PY"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- "nested space/unsafe.PY"
+printf 'placeholder\n' > "$test_repo/src/escape.ipynb"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/escape.ipynb
+printf '#!/usr/bin/env python3\n' > "$test_repo/runner"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- runner
+ln -s hello.atto "$test_repo/src/alias.atto"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/alias.atto
+printf 'bad\n' > "$test_repo/SOURCE_REF"
+git -C "$test_repo" add .
+check_bad
+printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
+printf '\n' >> "$test_repo/SOURCE_REF"
+git -C "$test_repo" add .
+check_ok
+mkdir -p "$test_repo/scripts"
+printf 'legacy\n' > "$test_repo/scripts/benchmark.py"
+git -C "$test_repo" add .
+check_bad
+check_ok rest-legacy
+printf 'new\n' > "$test_repo/scripts/new_tool.py"
+git -C "$test_repo" add .
+check_bad rest-legacy
+
+# Reset *all* prior negatives before testing the canonical extension guard.
+# Otherwise scripts/new_tool.py would make the legacy-source check pass
+# for the wrong reason (strict mode rejects the unrelated Python file).
+git -C "$test_repo" rm -q -f scripts/new_tool.py scripts/benchmark.py
+check_ok
+printf 'invalid\n' > "$test_repo/src/legacy.ores"
+git -C "$test_repo" add src/legacy.ores
+# Require the *specific* reason; generic failure is not a proof of .ores denial.
+legacy_error="$(SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE=strict bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted legacy .ores source' >&2; exit 1;
+}
+[[ "$legacy_error" == *'canonical AttoLang source must use .atto'* ]] || {
+  echo "TEST_FAILURE: legacy source rejection had wrong reason: $legacy_error" >&2; exit 1;
+}
+git -C "$test_repo" rm -q -f src/legacy.ores
+check_ok
+
+# Extension case is also fail-closed even when the inventory gate is omitted.
+printf 'invalid\n' > "$test_repo/src/uppercase.ATTO"
+git -C "$test_repo" add src/uppercase.ATTO
+case_error="$(SOURCE_POLICY_ROOT="$test_repo" SOURCE_POLICY_MODE=strict bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted uppercase .ATTO source' >&2; exit 1;
+}
+[[ "$case_error" == *'noncanonical extension case'* ]] || {
+  echo "TEST_FAILURE: uppercase extension had wrong reason: $case_error" >&2; exit 1;
+}
+git -C "$test_repo" rm -q -f src/uppercase.ATTO
+check_ok
+# A failing git ls-files previously yielded a false PASS with tracked_files=0.
+# Require the specific inventory failure, not an unrelated rejection.
+mock_dir="$(mktemp -d)"
+real_git="$(command -v git)"
+cat > "$mock_dir/git" <<MOCK
+#!/usr/bin/env bash
+if [[ "\${1:-}" == 'ls-files' ]]; then exit 86; fi
+exec "$real_git" "\$@"
+MOCK
+chmod 700 "$mock_dir/git"
+inventory_error="$(PATH="$mock_dir:$PATH" SOURCE_POLICY_ROOT="$test_repo" \
+  bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted failed git ls-files inventory' >&2; exit 1;
+}
+[[ "$inventory_error" == *'POLICY_FAILURE: cannot list tracked sources'* ]] || {
+  echo "TEST_FAILURE: wrong Git inventory failure: $inventory_error" >&2; exit 1;
+}
+rm -rf -- "$mock_dir"
+check_ok
+
+# A successful but empty Git inventory must never prove the source policy.
+empty_repo="$(mktemp -d)"
+git -C "$empty_repo" init -q
+empty_error="$(SOURCE_POLICY_ROOT="$empty_repo" bash "$root/ci/source-policy.sh" 2>&1)" && {
+  echo 'TEST_FAILURE: accepted empty Git index' >&2; exit 1;
+}
+[[ "$empty_error" == *'POLICY_FAILURE: empty tracked-source inventory'* ]] || {
+  echo "TEST_FAILURE: wrong empty-inventory failure: $empty_error" >&2; exit 1;
+}
+rm -rf -- "$empty_repo"
+check_ok
+printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS isolated_legacy_and_case_rejections=true inventory_fail_closed=2\n'

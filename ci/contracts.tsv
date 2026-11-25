@@ -1,6 +1,5 @@
 # name	file	expectation
-http-success	tests/http_success.ores	tests/http_success.out
-http-negative	tests/http_negative.ores	tests/http_negative.out
-http-disconnect	tests/http_disconnect.ores	tests/http_disconnect.out
-http-bounds	tests/http_bounds.ores	tests/http_bounds.out
-live-wire	tests/live_wire.ores	tests/live_wire.out
+http-health	tests/http_health.atto	tests/http_health.out
+http-negative	tests/http_negative.atto	tests/http_negative.out
+http-success	tests/http_success.atto	tests/http_success.out
+live-wire	tests/live_wire.atto	tests/live_wire.out

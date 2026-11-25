@@ -1,4 +1,4 @@
-import module live_wire from "../src/live_wire";
+import module live_wire from "../src/live_wire.atto";
 
 pub routine main(): int {
   if !live_wire.next_revision(0, 1) || !live_wire.next_revision(14, 15); then

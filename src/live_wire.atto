@@ -1,4 +1,4 @@
-// Shared sequencing rules for Ores Live v1. This is a pure Oreslang module;
+// Shared sequencing rules for Ores Live v1. This is a pure AttoLang module;
 // WebSocket transport and actor-owned subscription state are NOT implemented.
 define module live_wire as
   // The first event following an empty revision is revision 1.

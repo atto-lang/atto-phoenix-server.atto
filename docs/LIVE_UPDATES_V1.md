@@ -50,7 +50,7 @@ Server to client:
   matching current acknowledged revision; only then enable client mutations.
   A new snapshot also establishes readiness.
 
-The replay classifier in `src/live_wire.ores` chooses `replay` only when
+The replay classifier in `src/live_wire.atto` chooses `replay` only when
 `last >= floor - 1` and epoch matches, otherwise `snapshot`. Invalid negative,
 inverted or overflowing positions are rejected. Retention gaps require a
 snapshot, not a permanent reconnect loop. A duplicate stale snapshot in the
@@ -125,7 +125,7 @@ Normal server-rendered HTTP remains the no-JavaScript fallback.
    reconnect/replay, gaps, resync, origin URL and no mutation replay. These
    are browser-model tests, **not** actual browser or native transport tests.
 2. **Pending:** exact-head Oreslang compiler check and execution of
-   `tests/live_wire.ores` under the pinned private compiler, along with
+   `tests/live_wire.atto` under the pinned public compiler, along with
    existing HTTP contracts. Do not mark this as a pass until runner steps execute.
 3. **Pending:** native WebSocket RFC 6455 handshake, framing, auth, lifecycle,
    cancellation and negative raw-TCP suites; Java/Graal and LLVM first.

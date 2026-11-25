@@ -1,0 +1,6 @@
+// Independent actor-backed health endpoint acceptance client.
+pub async routine main(): int {
+  val String status = await http.get_text("http://127.0.0.1:8082/healthz");
+  stdio.println(status);
+  return 0;
+}

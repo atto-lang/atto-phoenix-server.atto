@@ -1,44 +1,47 @@
-# Oreslang Phoenix-style server demo
+> **AI agent instructions (organization-wide):** Before working on code, issues, or pull requests, read and follow the [organization `AGENTS.md`](https://github.com/atto-lang/.github/blob/main/AGENTS.md), including its **merge-first stealth-development policy**. Honor any repository-local `AGENTS.md`, explicit holds, and GitHub-enforced rules.
 
-**Status: loopback HTTP source candidate; exact-head execution pending.**
+# atto-phoenix-server.atto
 
-This repository now contains a small Oreslang-native HTTP actor application with:
+Experimental server architecture and concurrency patterns implemented in AttoLang.
 
-- `GET /hello` → `hello from oreslang`;
-- `POST /echo` → echoes a bounded `text/plain` request body;
-- explicit 404, 405, and 415 behavior;
-- a fixed **127.0.0.1:8082** listener;
-- admission capacity 64, 16 pooled isolated request actors, a 16 KiB body limit, and a 5 second request deadline.
+## Naming migration and language authority
 
-This is an ergonomics/demo project. It is **not** a port of or compatibility claim for Elixir Phoenix, Plug, or the BEAM VM.
+This repository is maintained at [atto-lang/atto-phoenix-server.atto](https://github.com/atto-lang/atto-phoenix-server.atto); use `https://github.com/atto-lang/atto-phoenix-server.atto.git` for Git remotes and canonical `.atto` source examples. The normative language contract is [atto-spec](https://github.com/atto-lang/atto-spec), with executable guest evidence tracked by [atto-platform-conformance](https://github.com/atto-lang/atto-platform-conformance). Follow current ownership, borrowing, effects, actor, and syntax rules there; do not infer implemented features from a README or unexecuted CI.
 
-The machine-readable status is in [`demo-status.txt`](demo-status.txt), and [`DEMO_CONTRACT.md`](DEMO_CONTRACT.md) defines the promotion boundary.
+## Project scope
 
-## Exact compiler boundary
+Server concurrency, connection handling, and runtime experiments.
 
-`SOURCE_REF` pins the Java/Graal compiler/runtime to `f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa`.
+## Development and validation
 
-The CI runner never fetches, resets, or mirrors private compiler source. The trusted source-org runner must provide an existing clean `ORESLANG_SOURCE_DIR` at exactly that commit. The contract runner compiler-checks every inventoried source, starts the real Oreslang listener, and drives it with Oreslang HTTP/TCP clients.
+Document the specific `.atto` source, expected results, supported backend/toolchain, and commands that have been executed.
 
-A queued or zero-step job is `NOT_EXECUTED`; no runtime pass is claimed until real steps run.
+## Status
 
-## Current constraints
+This is a statement of intended scope, not a claim of completed implementation or production readiness. Source, CI, and checked-in examples are authoritative for actual supported features and commands.
 
-TLS, HTTP/2, WebSockets, templates, JSON codecs, signed cookies, database access, public bind, and outbound application network access are not part of this demo. The server receives only the loopback listener capability used by the test profile.
+## Ecosystem
 
-Graceful signal-driven draining and hot-generation routing remain later gates. The underlying HTTP runtime exposes bounded server shutdown, but this source candidate does not yet expose an application control path for it.
+- [AttoLang organization](https://github.com/atto-lang)
+- [Language specification](https://github.com/atto-lang/atto-spec)
+- [Platform conformance](https://github.com/atto-lang/atto-platform-conformance)
 
-Tracked by [issue #3](https://github.com/ores-truffle-oreslang/oreslang-phoenix-server.ores/issues/3).
+## Repository ownership and contribution routing
 
-## Ores Live v1: protocol foundation (not a WebSocket server)
+**Belongs here:** An experimental Phoenix-inspired server design in .atto: connection supervision, actor fan-out, messaging and live state architecture.
 
-The `web/ores-live.mjs` browser client implements bounded, versioned,
-same-origin WebSocket DOM diff delivery, snapshots, revision replay,
-resynchronization and text-only safe rendering. `src/live_wire.ores`
-provides pure source-level revision/replay/ack rules with a compiler-backed
-contract **pending exact-head execution**.
+**Belongs elsewhere:** Generic HTTP routing in atto-http-routing; general server example in atto-api-server.atto; reusable reactive functions in atto-rx.
 
-See [live updates contract](docs/LIVE_UPDATES_V1.md) and run
-`bash ci/test-live-web.sh` for host-only browser protocol tests.
-**The current HTTP-only demo does not yet expose a WebSocket endpoint,
-LiveSession actor, SSE stream or HTMX server adapter.**
+**Security and portability boundary:** Clearly label research vs production support; test supervised failures, mailbox quotas, reconnect/restart and generation-fenced actor references.
+
+AttoLang is the canonical project name; new source, examples and documentation use `.atto` and the `atto-lang` repository organization. This README defines scope, not feature readiness.
+
+**Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
+
+## Canonical HTTP candidate
+
+This branch carries the `.atto` loopback actor demo with health, hello, echo and negative request contracts. See `DEMO_CONTRACT.md` and `docs/ATTO_MIGRATION_GATES.md`. The public compiler checkout is pinned by `SOURCE_REF`; a new isolated hosted workflow runs the public compiler and guest contracts without private credentials, private source transfer or persistent runner access. Its existence is not execution evidence. The historical private runner remains disabled pending its separate approval policy. No Phoenix compatibility, production, or multi-backend parity claim is made.
+
+## Ores Live v1 protocol foundation (not a WebSocket server)
+
+The independent `web/ores-live.mjs` browser client and `src/live_wire.atto` revision/replay rules are described in [the protocol contract](docs/LIVE_UPDATES_V1.md). Run `bash ci/test-live-web.sh` for host tests. Native guest evidence requires a successful pinned compiler run. This is not an integrated WebSocket server.
