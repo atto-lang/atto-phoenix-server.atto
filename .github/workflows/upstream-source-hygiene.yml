@@ -46,6 +46,9 @@ jobs:
       - name: Test adversarial source-policy regressions
         shell: bash
         run: bash ci/test-source-policy.sh
+      - name: Test read-only Actions admission reporter against seven offline cases
+        shell: bash
+        run: bash ci/test-read-actions-admission.sh
       - name: Enforce exact Git-index source policy
         shell: bash
         env:
