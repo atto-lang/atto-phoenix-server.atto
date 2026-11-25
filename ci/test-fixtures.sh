@@ -60,4 +60,31 @@ ln -s /etc/passwd "$repo/tests/alias.atto"
 git -C "$repo" add tests/alias.atto
 check_bad
 git -C "$repo" rm -q -f tests/alias.atto
-printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=10\n'
+# Preserve repository-wide index and exact oracle coverage from #10.
+touch "$repo/tests/undeclared.out"
+git -C "$repo" add tests/undeclared.out
+check_bad
+git -C "$repo" rm -q -f tests/undeclared.out
+mkdir -p "$repo/other"
+touch "$repo/other/stray.out"
+git -C "$repo" add other/stray.out
+check_bad
+git -C "$repo" rm -q -f other/stray.out
+ln -s /etc/passwd "$repo/other/unsafe.md"
+git -C "$repo" add other/unsafe.md
+check_bad
+git -C "$repo" rm -q -f other/unsafe.md
+git -C "$repo" update-index --add --cacheinfo 160000,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,vendor/unchecked
+check_bad
+git -C "$repo" update-index --force-remove vendor/unchecked
+touch "$repo/tests/unlisted.OuT"
+git -C "$repo" add tests/unlisted.OuT
+check_bad
+git -C "$repo" rm -q -f tests/unlisted.OuT
+newline_path="$(printf 'tests/newline\nstrange.atto')"
+touch "$repo/$newline_path"
+git -C "$repo" add -- "$newline_path"
+check_bad
+git -C "$repo" rm -q -f -- "$newline_path"
+check_ok
+printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=16\n'

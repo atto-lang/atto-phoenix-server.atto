@@ -9,8 +9,15 @@ fail() { printf 'FIXTURE_POLICY_FAILURE: %s\n' "$*" >&2; exit 2; }
 for file in ci/contracts.tsv ci/atto-files.txt; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing or symlinked $file"
 done
-# Git-index mode is the authority: reject staged links/submodules even if
-# their checkout has been substituted with an ordinary file.
+# The entire Git index is the authority: reject staged symlinks and gitlinks
+# anywhere, including workflow and runner scripts. Checking only src/tests/ci
+# allows a tracked link elsewhere to escape the reviewed worktree boundary.
+tmp="$(mktemp -d)"
+trap 'rm -rf -- "$tmp"' EXIT
+git ls-files --stage -z > "$tmp/index" || fail 'cannot list index'
+[[ -s "$tmp/index" ]] || fail 'empty index'
+git ls-files -z > "$tmp/paths" || fail 'cannot list tracked paths'
+[[ -s "$tmp/paths" ]] || fail 'empty paths'
 while IFS= read -r -d '' entry; do
   mode="${entry%% *}"
   path="${entry#*$'\t'}"
@@ -19,10 +26,7 @@ while IFS= read -r -d '' entry; do
     *) fail "unsafe indexed mode $mode: $path" ;;
   esac
   [[ -f "$path" && ! -L "$path" ]] || fail "missing/symlinked tracked entry: $path"
-done < <(git ls-files --stage -z -- src tests ci)
-
-tmp="$(mktemp -d)"
-trap 'rm -rf -- "$tmp"' EXIT
+done < "$tmp/index"
 awk -F '\t' '
   /^#/ {next}
   {
@@ -48,23 +52,38 @@ while IFS= read -r file; do
   git ls-files --error-unmatch -- "$file" >/dev/null 2>&1 || fail "untracked fixture/oracle: $file"
 done < <(cat "$tmp/contract-sources" "$tmp/contract-oracles")
 
+# Case-mixed extensions and quoted/newline filenames must not escape the
+# source-oracle inventory. NUL-delimited Git index paths are authoritative;
+# all accepted source and oracle filenames use the canonical lowercase form.
+while IFS= read -r -d '' path; do
+  case "$path" in
+    *.[Oo][Rr][Ee][Ss]) fail "legacy .ores guest source forbidden: $path" ;;
+    *.[Aa][Tt][Tt][Oo])
+      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.atto$ ]] ||
+        fail "noncanonical AttoLang source path: $path" ;;
+    *.[Oo][Uu][Tt])
+      [[ "$path" =~ ^tests/[a-z0-9_]+\.out$ ]] ||
+        fail "noncanonical output oracle path: $path" ;;
+  esac
+done < "$tmp/paths"
+
 # All committed tests must be declared and compiler-check inventory exact.
 git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.atto$' | sort > "$tmp/tracked-tests"
 sort "$tmp/contract-sources" > "$tmp/contract-tests"
 diff -u "$tmp/contract-tests" "$tmp/tracked-tests" || fail 'unlisted/absent fixture tests'
 
-# Fail closed on legacy or case-variant guest extensions anywhere in the Git index.
-# NUL-separated enumeration prevents filename newline bypass.
+# Every tracked .out oracle must be declared, including those outside tests/.
+# Without this, an extra expectation can be silently ignored by CI.
+: > "$tmp/all-oracles"
 while IFS= read -r -d '' path; do
-  case "${path,,}" in
-    *.ores) fail "legacy .ores guest source forbidden: $path" ;;
-    *.atto)
-      [[ "$path" == *.atto ]] || fail "noncanonical source extension: $path"
-      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.atto$ ]] ||
-        fail "unexpected AttoLang source path: $path"
-      ;;
+  case "$path" in
+    *.out) printf '%s\n' "$path" >> "$tmp/all-oracles" ;;
   esac
-done < <(git ls-files -z --cached)
+done < "$tmp/paths"
+LC_ALL=C sort -o "$tmp/all-oracles" "$tmp/all-oracles"
+LC_ALL=C sort "$tmp/contract-oracles" > "$tmp/declared-oracles"
+diff -u "$tmp/declared-oracles" "$tmp/all-oracles" ||
+  fail 'unlisted, misplaced or absent expectation oracle'
 
 # Count *every* tracked source; unexpected names and nested sources fail.
 git ls-files -- src tests | grep -E '\.atto$' | sort > "$tmp/tracked-sources"

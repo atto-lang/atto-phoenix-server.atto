@@ -1,0 +1,34 @@
+// Client aborts are a transport-lifecycle contract, not an HTTP status
+// contract. The listener must recover and serve subsequent complete requests.
+pub async routine main(): int {
+  // Client closes before completing the HTTP header section.
+  val partial_headers = await network.connect("127.0.0.1", 8082);
+  await partial_headers.write_text(
+    "GET /hello HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+  );
+  await partial_headers.close();
+
+  // Client advertises a longer body than it sends, then disconnects.
+  val partial_body = await network.connect("127.0.0.1", 8082);
+  await partial_body.write_text(
+    "POST /echo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\nContent-Length: 32\r\nConnection: close\r\n\r\nping"
+  );
+  await partial_body.close();
+
+  // Assert the server did not wedge or terminate after either incomplete
+  // request. The contract runner independently requires the server alive.
+  val String hello = await http.get_text("http://127.0.0.1:8082/hello");
+  if hello neq "hello from attolang"; then
+    stdio.println("FAIL disconnected clients blocked /hello");
+    return 1;
+  fi
+
+  val String echo = await http.post_text("http://127.0.0.1:8082/echo", "still alive");
+  if echo neq "still alive"; then
+    stdio.println("FAIL disconnected clients blocked /echo");
+    return 1;
+  fi
+
+  stdio.println("PASS Phoenix-style HTTP disconnect recovery");
+  return 0;
+}

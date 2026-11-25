@@ -15,8 +15,8 @@
 1. Attest exact demo PR head/tree and `SOURCE_REF` compiler head/tree.
 2. Run source inventory and Git-index negative policy tests (legacy `.ores`, odd-case extension, path/symlink/contract tampering).
 3. Compile-check **all** inventory `.atto` files with the pinned real compiler.
-4. Start a real actor-backed loopback HTTP server, run all **three** native `.atto` clients, compare exact stdout, check negative HTTP status codes and server survival.
-5. Add and execute request framing, 503 overload, 504 deadline, disconnect, drain, restart, hot-generation and actor-reclamation tests.
+4. Start a real actor-backed loopback HTTP server, run all **five** native `.atto` clients, compare exact stdout, check negative HTTP status codes and server survival.
+5. Execute the migrated size/deadline and disconnect recovery fixtures; add precise deadline, overload, framing, drain, restart, hot-generation and actor-reclamation coverage.
 6. Require nonzero-step exact-head CI and independent review; zero-step jobs remain `NOT_EXECUTED`.
 7. Repeat actual portable contracts with LLVM, .NET NativeAOT, Wasm and Forge before any five-backend claim.
 
@@ -29,3 +29,5 @@ The native runner additionally requires an independently authorized `EXPECTED_DE
 ## Narrow echo Content-Type admission
 
 For v1, the application accepts exactly `text/plain` and `text/plain; charset=utf-8` with literal matching. Malformed, empty and unknown parameters and non-UTF8 charset claims are rejected with 415. This is intentionally a narrow profile, not a general RFC media-type parser. The `.atto` raw-wire client adds three negative cases and one positive canonical UTF-8 case. The separate host-only MIME structural gate has six negative mutations; neither source-only check nor a public CI canary proves native execution.
+
+The migrated bounds and disconnect fixtures preserve #10's native source oracles; execution is pending. The bounds fixture verifies rejection or closure and recovery, not exact timing or memory allocation. Repository-wide index and oracle inventory rejection tests remain host-only.

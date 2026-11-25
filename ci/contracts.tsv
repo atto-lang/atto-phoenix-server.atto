@@ -1,4 +1,6 @@
 # name	file	expectation
+http-bounds	tests/http_bounds.atto	tests/http_bounds.out
+http-disconnect	tests/http_disconnect.atto	tests/http_disconnect.out
 http-health	tests/http_health.atto	tests/http_health.out
 http-negative	tests/http_negative.atto	tests/http_negative.out
 http-success	tests/http_success.atto	tests/http_success.out
