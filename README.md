@@ -37,3 +37,7 @@ This is a statement of intended scope, not a claim of completed implementation o
 AttoLang is the canonical project name; new source, examples and documentation use `.atto` and the `atto-lang` repository organization. This README defines scope, not feature readiness.
 
 **Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
+
+## Reviewed native dispatcher
+
+See [docs/PHOENIX_NATIVE_DISPATCH.md](docs/PHOENIX_NATIVE_DISPATCH.md). Its allowlist is empty; the private runner must remain disabled unless independently approved and externally protected. No native execution is attested by the dispatcher bootstrap.

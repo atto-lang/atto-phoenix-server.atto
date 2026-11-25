@@ -1,0 +1,4 @@
+# Review-controlled native runner authorization. This file lives on main.
+# Each active entry is PR_NUMBER<TAB>FULL_LOWERCASE_COMMIT_SHA.
+# No active entries: native Phoenix execution is fail-closed by default.
+# Never add a wildcard, branch name, floating ref, or unreviewed SHA.
