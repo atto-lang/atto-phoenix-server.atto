@@ -16,6 +16,10 @@ check_bad() {
 count=0
 restore
 check_ok
+# The pinned compiler treats a single pipe as integer bitwise OR, not logical OR.
+sed -i 's/ || / | /' "$app"
+check_bad
+restore
 sed -i 's/content_type eq "text\/plain; charset=utf-8"/content_type.starts_with("text\/plain;")/' "$app"
 check_bad
 restore

@@ -30,7 +30,7 @@ define isoactor RequestHandler as
       fi
       val String content_type = exchange.header("Content-Type");
       // V1 accepts only canonical UTF-8 plain text; never trust MIME prefixes.
-      if !(content_type eq "text/plain" | content_type eq "text/plain; charset=utf-8"); then
+      if !(content_type eq "text/plain" || content_type eq "text/plain; charset=utf-8"); then
         await exchange.respond(415, "text/plain; charset=utf-8", "text/plain required");
         return;
       fi

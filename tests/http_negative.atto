@@ -5,7 +5,7 @@ pub async routine main(): int {
   );
   val wrong_method_status = await wrong_method.read_line();
   await wrong_method.close();
-  if wrong_method_status.is_none() |
+  if wrong_method_status.is_none() ||
     !wrong_method_status.unwrap().starts_with("HTTP/1.1 405"); then
     stdio.println("FAIL /hello method gate");
     return 1;
@@ -18,7 +18,7 @@ pub async routine main(): int {
   );
   val health_wrong_status = await health_wrong.read_line();
   await health_wrong.close();
-  if health_wrong_status.is_none() |
+  if health_wrong_status.is_none() ||
     !health_wrong_status.unwrap().starts_with("HTTP/1.1 405"); then
     stdio.println("FAIL /healthz method gate");
     return 1;
@@ -30,7 +30,7 @@ pub async routine main(): int {
   );
   val missing_status = await missing.read_line();
   await missing.close();
-  if missing_status.is_none() |
+  if missing_status.is_none() ||
     !missing_status.unwrap().starts_with("HTTP/1.1 404"); then
     stdio.println("FAIL missing route");
     return 1;
@@ -42,7 +42,7 @@ pub async routine main(): int {
   );
   val wrong_type_status = await wrong_type.read_line();
   await wrong_type.close();
-  if wrong_type_status.is_none() |
+  if wrong_type_status.is_none() ||
     !wrong_type_status.unwrap().starts_with("HTTP/1.1 415"); then
     stdio.println("FAIL /echo content type gate");
     return 1;
@@ -55,7 +55,7 @@ pub async routine main(): int {
   );
   val bad_prefix_status = await bad_prefix.read_line();
   await bad_prefix.close();
-  if bad_prefix_status.is_none() |
+  if bad_prefix_status.is_none() ||
     !bad_prefix_status.unwrap().starts_with("HTTP/1.1 415"); then
     stdio.println("FAIL /echo media type prefix gate");
     return 1;
@@ -68,7 +68,7 @@ pub async routine main(): int {
   );
   val empty_mime_status = await empty_mime.read_line();
   await empty_mime.close();
-  if empty_mime_status.is_none() |
+  if empty_mime_status.is_none() ||
     !empty_mime_status.unwrap().starts_with("HTTP/1.1 415"); then
     stdio.println("FAIL /echo MIME empty parameter");
     return 1;
@@ -81,7 +81,7 @@ pub async routine main(): int {
   );
   val unknown_mime_status = await unknown_mime.read_line();
   await unknown_mime.close();
-  if unknown_mime_status.is_none() |
+  if unknown_mime_status.is_none() ||
     !unknown_mime_status.unwrap().starts_with("HTTP/1.1 415"); then
     stdio.println("FAIL /echo MIME unknown parameter");
     return 1;
@@ -94,7 +94,7 @@ pub async routine main(): int {
   );
   val wrong_charset_status = await wrong_charset.read_line();
   await wrong_charset.close();
-  if wrong_charset_status.is_none() |
+  if wrong_charset_status.is_none() ||
     !wrong_charset_status.unwrap().starts_with("HTTP/1.1 415"); then
     stdio.println("FAIL /echo MIME non-UTF8 charset");
     return 1;
@@ -107,7 +107,7 @@ pub async routine main(): int {
   );
   val canonical_charset_status = await canonical_charset.read_line();
   await canonical_charset.close();
-  if canonical_charset_status.is_none() |
+  if canonical_charset_status.is_none() ||
     !canonical_charset_status.unwrap().starts_with("HTTP/1.1 200"); then
     stdio.println("FAIL /echo MIME canonical UTF8 positive");
     return 1;

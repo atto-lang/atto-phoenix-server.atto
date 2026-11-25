@@ -6,7 +6,7 @@ app="${1:-$root/src/main.atto}"
 fixture="${2:-$root/tests/http_negative.atto}"
 fail() { echo "ECHO_MIME_STRUCTURAL_FAILURE: $*" >&2; exit 2; }
 [[ -f "$app" && ! -L "$app" && -f "$fixture" && ! -L "$fixture" ]] || fail 'missing/symlinked source'
-expected='      if !(content_type eq "text/plain" | content_type eq "text/plain; charset=utf-8"); then'
+expected='      if !(content_type eq "text/plain" || content_type eq "text/plain; charset=utf-8"); then'
 [[ "$(grep -Fxc "$expected" "$app" || true)" == 1 ]] || fail 'noncanonical MIME predicate'
 if grep -Eq '^[[:space:]]*if.*content_type\.starts_with' "$app"; then
   fail 'prefix MIME admission'
