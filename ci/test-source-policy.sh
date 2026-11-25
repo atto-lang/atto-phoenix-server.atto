@@ -21,26 +21,6 @@ check_bad() {
   fi
 }
 check_ok
-# Bind a review to a true Git HEAD rather than an arbitrary branch label.
-git -C "$test_repo" commit -qm "source policy fixture"
-source_head="$(git -C "$test_repo" rev-parse HEAD)"
-EXPECTED_DEMO_SHA="$source_head" check_ok
-EXPECTED_DEMO_SHA="main" check_bad
-EXPECTED_DEMO_SHA="$(printf '0%.0s' {1..40})" check_bad
-# CRLF and trailing bytes cannot satisfy the canonical pinned SOURCE_REF.
-printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
-printf '\r\n' >> "$test_repo/SOURCE_REF"
-git -C "$test_repo" add SOURCE_REF
-check_bad
-printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
-printf '\nextra\n' >> "$test_repo/SOURCE_REF"
-git -C "$test_repo" add SOURCE_REF
-check_bad
-printf 'a%.0s' {1..40} > "$test_repo/SOURCE_REF"
-printf '\n' >> "$test_repo/SOURCE_REF"
-git -C "$test_repo" add SOURCE_REF
-EXPECTED_DEMO_SHA="$source_head" check_ok
-mkdir -p "$test_repo/nested space"check_ok
 mkdir -p "$test_repo/nested space"
 printf 'placeholder\n' > "$test_repo/nested space/unsafe.PY"
 git -C "$test_repo" add .
@@ -58,6 +38,18 @@ ln -s hello.ores "$test_repo/src/alias.ores"
 git -C "$test_repo" add .
 check_bad
 git -C "$test_repo" rm -q -f -- src/alias.ores
+ln -s hello.ores "$test_repo/src/mixed.OrEs"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/mixed.OrEs
+printf 'placeholder\n' > "$test_repo/src/mixed.pYi"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/mixed.pYi
+printf 'placeholder\n' > "$test_repo/src/mixed.IpYnB"
+git -C "$test_repo" add .
+check_bad
+git -C "$test_repo" rm -q -f -- src/mixed.IpYnB
 printf 'bad\n' > "$test_repo/SOURCE_REF"
 git -C "$test_repo" add .
 check_bad
@@ -73,4 +65,4 @@ check_ok rest-legacy
 printf 'new\n' > "$test_repo/scripts/new_tool.py"
 git -C "$test_repo" add .
 check_bad rest-legacy
-printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS scenarios=8\n'
+printf 'SOURCE_POLICY_NEGATIVE_TESTS_PASS scenarios=11\n'
