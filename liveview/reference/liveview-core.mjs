@@ -79,6 +79,11 @@ export class LiveViewSession {
       assert(supplied.length===expected.length && timingSafeEqual(supplied,expected),'CSRF mismatch');
       assert(transport.origin===this.origin,'origin mismatch');
       assert(Number.isSafeInteger(frame.resume_rev) && frame.resume_rev>=-1,'invalid resume revision');
+      // Joined identities also consume a finite admission budget. A direct
+      // session caller must never grow the joined set without using attach().
+      // Rejoining an existing identity is idempotent and consumes no new slot.
+      if(!this.joined.has(transport.connectionId))
+        assert(this.joined.size<this.maxSubscribers,'joined connection limit exceeded');
       this.joined.add(transport.connectionId);
       if(frame.resume_rev===this.revision) return [this._packet(this._ready())];
       const chain=[]; let rev=frame.resume_rev;
