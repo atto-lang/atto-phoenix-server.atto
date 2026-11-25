@@ -4,3 +4,4 @@ http-disconnect	tests/http_disconnect.atto	tests/http_disconnect.out
 http-health	tests/http_health.atto	tests/http_health.out
 http-negative	tests/http_negative.atto	tests/http_negative.out
 http-success	tests/http_success.atto	tests/http_success.out
+live-wire	tests/live_wire.atto	tests/live_wire.out

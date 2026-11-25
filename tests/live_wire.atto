@@ -1,0 +1,31 @@
+import module live_wire from "../src/live_wire.atto";
+
+pub routine main(): int {
+  if !live_wire.next_revision(0, 1) || !live_wire.next_revision(14, 15); then
+    stdio.println("FAIL sequential revisions");
+    return 1;
+  fi
+  if live_wire.next_revision(5, 5) || live_wire.next_revision(5, 7) ||
+     live_wire.next_revision(-1, 0) || live_wire.next_revision(2147483646, 2147483647); then
+    stdio.println("FAIL invalid revisions");
+    return 1;
+  fi
+  if live_wire.resume_mode(true, 4, 5, 9) != "replay" ||
+     live_wire.resume_mode(true, 3, 5, 9) != "snapshot" ||
+     live_wire.resume_mode(false, 7, 5, 9) != "snapshot" ||
+     live_wire.resume_mode(true, 10, 5, 9) != "snapshot" ||
+     live_wire.resume_mode(true, -1, 0, 9) != "invalid" ||
+     live_wire.resume_mode(true, 0, 4, 3) != "invalid" ||
+     live_wire.resume_mode(true, 0, 0, 9) != "invalid" ||
+     live_wire.resume_mode(true, 0, 0, 0) != "replay"; then
+    stdio.println("FAIL replay boundary");
+    return 1;
+  fi
+  if !live_wire.ack_allowed(true, 4, 4) || live_wire.ack_allowed(false, 4, 4) ||
+     live_wire.ack_allowed(true, 5, 4) || live_wire.ack_allowed(true, -1, 4); then
+    stdio.println("FAIL ack boundary");
+    return 1;
+  fi
+  stdio.println("PASS Ores Live revision and replay rules");
+  return 0;
+}

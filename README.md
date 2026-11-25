@@ -41,3 +41,7 @@ AttoLang is the canonical project name; new source, examples and documentation u
 ## Canonical HTTP candidate
 
 This branch carries the `.atto` loopback actor demo with health, hello, echo and negative request contracts. See `DEMO_CONTRACT.md` and `docs/ATTO_MIGRATION_GATES.md`. The public compiler checkout is pinned by `SOURCE_REF`; a new isolated hosted workflow runs the public compiler and guest contracts without private credentials, private source transfer or persistent runner access. Its existence is not execution evidence. The historical private runner remains disabled pending its separate approval policy. No Phoenix compatibility, production, or multi-backend parity claim is made.
+
+## Ores Live v1 protocol foundation (not a WebSocket server)
+
+The independent `web/ores-live.mjs` browser client and `src/live_wire.atto` revision/replay rules are described in [the protocol contract](docs/LIVE_UPDATES_V1.md). Run `bash ci/test-live-web.sh` for host tests. Native guest evidence requires a successful pinned compiler run. This is not an integrated WebSocket server.
