@@ -1,19 +1,43 @@
-# Oreslang Phoenix-style server demo
+> **AI agent instructions (organization-wide):** Before working on code, issues, or pull requests, read and follow the [organization `AGENTS.md`](https://github.com/atto-lang/.github/blob/main/AGENTS.md), including its **merge-first stealth-development policy**. Honor any repository-local `AGENTS.md`, explicit holds, and GitHub-enforced rules.
 
-**Status: empty-demo bootstrap.** This is a prospective Oreslang-native example, **not** a port of or claim of compatibility with Elixir/Phoenix, Plug or the BEAM VM. There is no runnable server here yet.
+# atto-phoenix-server.atto
 
-## Integration contract
+Experimental server architecture and concurrency patterns implemented in AttoLang.
 
-- [oreslang-spin](https://github.com/ores-truffle-oreslang/oreslang-spin) provides the proposed HTTP actor dispatch/ownership model.
-- [oreslang-rpc](https://github.com/ores-truffle-oreslang/oreslang-rpc) supplies typed operation and schema IDs, with routing metadata kept stable.
-- Example supervision/restart should ultimately use optional `stdlib/otp` behaviours, not force OTP into freestanding `core`.
-- Routes and templating must not bypass sandbox/host-effect grants or emit unsafe HTML; capabilities remain explicit.
+## Naming migration and language authority
 
-## First executable milestone
+This repository is maintained at [atto-lang/atto-phoenix-server.atto](https://github.com/atto-lang/atto-phoenix-server.atto); use `https://github.com/atto-lang/atto-phoenix-server.atto.git` for Git remotes and canonical `.atto` source examples. The normative language contract is [atto-spec](https://github.com/atto-lang/atto-spec), with executable guest evidence tracked by [atto-platform-conformance](https://github.com/atto-lang/atto-platform-conformance). Follow current ownership, borrowing, effects, actor, and syntax rules there; do not infer implemented features from a README or unexecuted CI.
 
-1. Implement a tiny GET /hello and POST /echo Oreslang actor application with pinned Spin/router/compiler sources.
-2. Add exact-response/body/status tests and backpressure/graceful-shutdown cases, comparing against common REST conformance before any benchmark claims.
-3. Separate Oreslang guest execution evidence from host mock/adapter tests; unsupported OTP operations fail closed.
-4. Only run private source in reviewed source-org or independently authorized private CI.
+## Project scope
 
-Tracked by private [organization integration registry PR #79](https://github.com/ores-truffle-oreslang/oreslang-platform-conformance/pull/79).
+Server concurrency, connection handling, and runtime experiments.
+
+## Development and validation
+
+Document the specific `.atto` source, expected results, supported backend/toolchain, and commands that have been executed.
+
+## Status
+
+This is a statement of intended scope, not a claim of completed implementation or production readiness. Source, CI, and checked-in examples are authoritative for actual supported features and commands.
+
+## Ecosystem
+
+- [AttoLang organization](https://github.com/atto-lang)
+- [Language specification](https://github.com/atto-lang/atto-spec)
+- [Platform conformance](https://github.com/atto-lang/atto-platform-conformance)
+
+## Repository ownership and contribution routing
+
+**Belongs here:** An experimental Phoenix-inspired server design in .atto: connection supervision, actor fan-out, messaging and live state architecture.
+
+**Belongs elsewhere:** Generic HTTP routing in atto-http-routing; general server example in atto-api-server.atto; reusable reactive functions in atto-rx.
+
+**Security and portability boundary:** Clearly label research vs production support; test supervised failures, mailbox quotas, reconnect/restart and generation-fenced actor references.
+
+AttoLang is the canonical project name; new source, examples and documentation use `.atto` and the `atto-lang` repository organization. This README defines scope, not feature readiness.
+
+**Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
+
+## Reviewed native dispatcher
+
+See [docs/PHOENIX_NATIVE_DISPATCH.md](docs/PHOENIX_NATIVE_DISPATCH.md). Its allowlist is empty; the private runner must remain disabled unless independently approved and externally protected. No native execution is attested by the dispatcher bootstrap.

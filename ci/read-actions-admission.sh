@@ -2,7 +2,7 @@
 # Read-only GitHub Actions admission diagnostics. No repo changes or job reruns.
 set -euo pipefail
 
-repo="${GH_REPO:-ores-truffle-oreslang/oreslang-phoenix-server.ores}"
+repo="${GH_REPO:-atto-lang/atto-phoenix-server.atto}"
 run_id="${1:-}"
 [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'Invalid GH_REPO' >&2; exit 2; }
 [[ "$run_id" =~ ^[1-9][0-9]*$ ]] || { echo 'Usage: GH_REPO=owner/repo bash ci/read-actions-admission.sh RUN_ID' >&2; exit 2; }

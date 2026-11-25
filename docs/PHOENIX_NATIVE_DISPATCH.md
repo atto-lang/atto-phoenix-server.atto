@@ -38,14 +38,13 @@ change the Java/Graal compiler, or attest any runtime behavior.
    `main` and enforce reviewed changes to the allowlist/workflow.
 7. **Private compiler never leaves its authorized location.** The trusted
    runner must already hold a clean compiler worktree at exactly
-   `f40b9c3a3b5b4691eb4f4a5d5d0558a112f237aa`. The workflow never
+   `6d8eb70048eafc9a84c5aebe9c1bb06104f16e76`. The workflow never
    clones, downloads, or mirrors this private compiler checkout.
 
 ## Review, activation, and evidence
 
 - First review and merge *only* this controller/empty-allowlist change to
-  `main`; keep Phoenix application PR #2, security PR #5, and follow-on
-  PR #6 separate and draft. Do not populate the allowlist as part of bootstrap.
+  `main`; keep the application and follow-on security PRs separate until tested. Do not populate the allowlist as part of bootstrap.
 - Confirm `main` protections and the environment's human approvals and branch
   restrictions through repository administration.
 - Establish that hosted structural jobs can actually execute steps. For
@@ -81,7 +80,7 @@ five-backend parity based on this dispatcher alone.
 ## Read-only Actions admission diagnosis (issue #8)
 
 The reporter supports the system Bash 3.2 shipped on macOS; it does not
-require Bash 4's `mapfile`. Before relying on results, run the six offline
+require Bash 4's `mapfile`. Before relying on results, run the seven offline
 mocked API cases from the reviewed branch checkout:
 
 ```bash
@@ -136,3 +135,5 @@ Evidence reference: source-free private test run `41223143487` had
 `runner_id=0`, zero steps, while the public source-free control
 `41223210147` in the same alternative organization ran four steps.
 This comparison is diagnostic, not proof of the private billing cause.
+
+The public compiler and demo may also be tested on isolated ephemeral hosted runners without granting access to the trusted runner. This alternative never enables the private runner, fills the reviewed allowlist, or substitutes host-only evidence for native guest execution. The private dispatcher binds both the reviewed candidate commit and its Git tree before invoking `scripts/run-contracts.sh`.
