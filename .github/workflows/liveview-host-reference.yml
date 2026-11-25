@@ -30,6 +30,8 @@ jobs:
             echo 'NOT_EXACT_PR_HEAD'; exit 1;
           }
           node --version
+      - name: Check optional browser test syntax
+        run: node --check liveview/tests/browser-e2e.mjs
       - name: Offline WebSocket/LiveView reference tests
         run: node --test liveview/tests/*.test.mjs
       - name: Scope declaration
