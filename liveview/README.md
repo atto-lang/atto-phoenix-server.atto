@@ -71,13 +71,14 @@ connection, pending-byte and idle-time budgets are enforced. The browser now
 requests the required `ores-liveview-v1` WebSocket subprotocol and selects
 `ws:`/`wss:` based on the document scheme.
 
-The **optional** Chromium test (`tests/browser-e2e.py`) covers browser DOM clicks,
-two-tab broadcasts and reload. It requires Python Playwright and an unrestricted
+The **optional** Chromium test (`tests/browser-e2e.mjs`) covers browser DOM clicks,
+two-tab broadcasts and reload. It requires Node Playwright and an unrestricted
 loopback browser network. Run it separately:
 
 ```sh
-python -m playwright install chromium
-python tests/browser-e2e.py
+npm install --no-save --no-package-lock playwright
+npx playwright install chromium
+node tests/browser-e2e.mjs
 ```
 
 Browser automation can be blocked by environment policy even if the Node socket
@@ -151,6 +152,10 @@ Run `npm test` for the 183-test reference suite and see
 `docs/HARDENING_183.md` for limits, adversarial cases and the native CI gate.
 These tests do not certify a native Oreslang WebSocket runtime.
 
+## Wire conformance extension (41 vectors)
+
+See `docs/WIRE_VECTOR_41.md` for the 41-vector RFC6455 registry and deterministic split-admission tests. These are host-reference tests only; cross-backend native guest evidence remains pending.
+
 ## Cross-toolchain protocol contract (source-only)
 
 `fixtures/ores-liveview-toolchain-v1.json`,
@@ -182,3 +187,4 @@ must execute all eight SHA-256 golden vectors in
 `fixtures/liveview-event-fingerprint-v1.json` as well as the 41 RFC6455 wire
 vectors. See `docs/EVENT_REPLAY_FINGERPRINT_V1.md`. The local Node tests are
 HOST_REFERENCE_ONLY; no five-backend guest parity is claimed.
+
