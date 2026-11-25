@@ -44,7 +44,7 @@ No Phoenix/Plug/BEAM compatibility, production readiness, or benchmark claim fol
 - Unreviewed pull-request code runs **host-only structural checks** on an
   ephemeral GitHub-hosted runner. It must never run the private compiler or
   execute guest code with access to a persistent trusted compiler checkout.
-- The exact native runtime job is **manual workflow_dispatch only** and needs
+- Native execution requires a separately installed reviewed dispatcher (**not provided by this branch**) and needs
   an explicit, fully qualified reviewed demo commit SHA. Runner scripts require
   both the demo worktree and the pinned compiler worktree to be clean at their
   exact expected commits.
