@@ -59,4 +59,39 @@ git -C "$repo" add other/stray.out
 check_bad
 git -C "$repo" rm -q -f other/stray.out
 check_ok
-printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=9\n'
+# The index gate must cover files beyond src/tests/ci, especially workflow
+# and runner-adjacent paths that a trusted job could interpret.
+mkdir -p "$repo/docs"
+ln -s /etc/passwd "$repo/docs/unsafe.md"
+git -C "$repo" add docs/unsafe.md
+check_bad
+git -C "$repo" rm -q -f docs/unsafe.md
+# A gitlink outside the application source tree must fail closed as well.
+git -C "$repo" update-index --add --cacheinfo 160000,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,vendor/unchecked
+check_bad
+git -C "$repo" update-index --force-remove vendor/unchecked
+check_ok
+# The older line-oriented inventory could silently miss case-mixed source
+# and oracle extensions. Regular indexed files (not symlinks) must fail too.
+touch "$repo/tests/unlisted.OrEs"
+git -C "$repo" add tests/unlisted.OrEs
+check_bad
+git -C "$repo" rm -q -f tests/unlisted.OrEs
+mkdir -p "$repo/other"
+touch "$repo/other/unlisted.oReS"
+git -C "$repo" add other/unlisted.oReS
+check_bad
+git -C "$repo" rm -q -f other/unlisted.oReS
+touch "$repo/tests/unlisted.OuT"
+git -C "$repo" add tests/unlisted.OuT
+check_bad
+git -C "$repo" rm -q -f tests/unlisted.OuT
+# Git can quote an embedded newline in the old non-NUL `git ls-files`
+# output. The strict path regular expression must reject it directly.
+newline_path="$(printf 'tests/newline\nstrange.ores')"
+touch "$repo/$newline_path"
+git -C "$repo" add -- "$newline_path"
+check_bad
+git -C "$repo" rm -q -f -- "$newline_path"
+check_ok
+printf 'FIXTURE_NEGATIVE_TESTS_PASS scenarios=15\n'

@@ -9,8 +9,9 @@ fail() { printf 'FIXTURE_POLICY_FAILURE: %s\n' "$*" >&2; exit 2; }
 for file in ci/contracts.tsv ci/oreslang-files.txt; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing or symlinked $file"
 done
-# Git-index mode is the authority: reject staged links/submodules even if
-# their checkout has been substituted with an ordinary file.
+# The entire Git index is the authority: reject staged symlinks and gitlinks
+# anywhere, including workflow and runner scripts. Checking only src/tests/ci
+# allows a tracked link elsewhere to escape the reviewed worktree boundary.
 while IFS= read -r -d '' entry; do
   mode="${entry%% *}"
   path="${entry#*$'\t'}"
@@ -19,7 +20,7 @@ while IFS= read -r -d '' entry; do
     *) fail "unsafe indexed mode $mode: $path" ;;
   esac
   [[ -f "$path" && ! -L "$path" ]] || fail "missing/symlinked tracked entry: $path"
-done < <(git ls-files --stage -z -- src tests ci)
+done < <(git ls-files --stage -z)
 
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
@@ -47,6 +48,20 @@ while IFS= read -r file; do
   [[ -f "$file" && ! -L "$file" ]] || fail "missing/symlinked fixture or oracle: $file"
   git ls-files --error-unmatch -- "$file" >/dev/null 2>&1 || fail "untracked fixture/oracle: $file"
 done < <(cat "$tmp/contract-sources" "$tmp/contract-oracles")
+
+# Case-mixed extensions and quoted/newline filenames must not escape the
+# source-oracle inventory. NUL-delimited Git index paths are authoritative;
+# all accepted source and oracle filenames use the canonical lowercase form.
+while IFS= read -r -d '' path; do
+  case "$path" in
+    *.[Oo][Rr][Ee][Ss])
+      [[ "$path" =~ ^(src|tests)/[a-z0-9_]+\.ores$ ]] ||
+        fail "noncanonical Oreslang source path: $path" ;;
+    *.[Oo][Uu][Tt])
+      [[ "$path" =~ ^tests/[a-z0-9_]+\.out$ ]] ||
+        fail "noncanonical output oracle path: $path" ;;
+  esac
+done < <(git ls-files -z)
 
 # All committed tests must be declared and compiler-check inventory exact.
 git ls-files -- tests | grep -E '^tests/[a-z0-9_]+\.ores$' | sort > "$tmp/tracked-tests"

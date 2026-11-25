@@ -1,3 +1,5 @@
 # name	file	expectation
 http-success	tests/http_success.ores	tests/http_success.out
 http-negative	tests/http_negative.ores	tests/http_negative.out
+http-disconnect	tests/http_disconnect.ores	tests/http_disconnect.out
+http-bounds	tests/http_bounds.ores	tests/http_bounds.out
