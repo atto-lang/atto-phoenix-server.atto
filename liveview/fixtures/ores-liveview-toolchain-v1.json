@@ -1,0 +1,82 @@
+{
+  "schema": "ores-liveview-toolchain-v1",
+  "wire_fixture_blob_sha": "931f58c1acd40e4c7e1b0b061f1711a0afe3c9b8",
+  "wire_case_count": 41,
+  "event_fingerprint_fixture_blob_sha": "e9fc97d87dee2670c56ff3abf9e86befbc0f2ff8",
+  "event_fingerprint_case_count": 8,
+  "app_subprotocol": "ores-liveview-v1",
+  "all_toolchains_required": [
+    "java",
+    "llvm",
+    "wasm",
+    "forge",
+    "net"
+  ],
+  "shared_application_contract": {
+    "entrypoint": "mount -> event -> reducer -> typed_render -> patch/ack",
+    "required_frames": [
+      "join",
+      "snapshot",
+      "ready",
+      "event",
+      "patch",
+      "event_ack",
+      "event_rejected",
+      "resync"
+    ],
+    "wire_budget_bytes": 65536,
+    "max_patch_ops": 128,
+    "server_authoritative_revision": true,
+    "isolated_actor_state": true,
+    "supervisor_control_panic": true,
+    "no_host_object_escape": true,
+    "guest_compiler_execution_required": true,
+    "retirement_fences_coalesced_frames": true,
+    "retirement_suppresses_actor_output": true,
+    "exactly_once_detach_on_retirement": true,
+    "serial_actor_operations_nonreentrant": true,
+    "rendered_unicode_scalar_values_only": true
+  },
+  "toolchains": {
+    "java": {
+      "repo": "oreslang-source.java",
+      "backend": "GraalVM JVM/Native Image",
+      "target": "server",
+      "host_adapter": "NIO selector/actor handle",
+      "guest_liveview_verified": false,
+      "evidence": "draft host WebSocket codec and 41-vector JUnit checks; guest not attested"
+    },
+    "llvm": {
+      "repo": "oreslang-source.llvm",
+      "backend": "LLVM native zero-GC",
+      "target": "server",
+      "host_adapter": "epoll/reactor with fixed-storage codec",
+      "guest_liveview_verified": false,
+      "evidence": "draft C++ parser and sanitizer tests; guest not attested"
+    },
+    "wasm": {
+      "repo": "oreslang-source.wasm",
+      "backend": "Wasm worker/browser/Wasmtime",
+      "target": "host-adapter",
+      "host_adapter": "explicit browser/worker/Wasmtime WebSocket import",
+      "guest_liveview_verified": false,
+      "evidence": "guest LiveView and WebSocket admission currently fail closed; no listening socket in pure core Wasm"
+    },
+    "forge": {
+      "repo": "oreslang-source.forge",
+      "backend": "Forge/Cranelift",
+      "target": "server",
+      "host_adapter": "native reactor with fixed-storage codec",
+      "guest_liveview_verified": false,
+      "evidence": "draft C++ parser and sanitizer tests; guest not attested"
+    },
+    "net": {
+      "repo": "oreslang-source.net",
+      "backend": ".NET Native AOT",
+      "target": "server",
+      "host_adapter": "Kestrel actor transport",
+      "guest_liveview_verified": false,
+      "evidence": "HTTP provider exists; guest WebSocket and LiveView flags fail closed"
+    }
+  }
+}

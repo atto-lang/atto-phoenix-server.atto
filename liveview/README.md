@@ -155,3 +155,36 @@ These tests do not certify a native Oreslang WebSocket runtime.
 ## Wire conformance extension (41 vectors)
 
 See `docs/WIRE_VECTOR_41.md` for the 41-vector RFC6455 registry and deterministic split-admission tests. These are host-reference tests only; cross-backend native guest evidence remains pending.
+
+## Cross-toolchain protocol contract (source-only)
+
+`fixtures/ores-liveview-toolchain-v1.json`,
+`reference/toolchain-parity.mjs`, and `tests/five-toolchain-contract.test.mjs`
+add fail-closed five-backend topology, ownership and provenance checks.
+Java, LLVM, Wasm, Forge/Cranelift and .NET have **not** compiled or executed
+a common LiveView guest in this reference package. See
+`docs/FIVE_TOOLCHAIN_PORTABILITY.md` for native promotion gates. The gateway
+also enforces incomplete-message assembly deadlines without requiring a peer
+to transmit another byte; see `tests/deadline-and-lifecycle.test.mjs`.
+
+## 2026-11-01 five-backend fail-closed hardening
+
+See `docs/LIVEVIEW_PARITY_GATES_217.md`: exact WebSocket protocol offer
+validation, required application-frame vocabulary, and 217 local Node tests.
+This is **host-reference-only**; no Oreslang guest compiler or all-backend
+LiveView execution has been attested.
+
+## 2026-11-01 portable event replay hardening (239 host tests)
+
+The LiveView v1 browser snapshots a validated JSON payload at dispatch time;
+mutation by a caller cannot rewrite a queued or retried event. Server command
+fingerprints use recursively sorted ASCII JSON object keys, retaining array
+order, so equivalent JSON objects sent by Java/LLVM/Wasm/Forge/.NET agree on
+replay identity once their guest adapters implement the contract. Non-JSON
+objects, getters, sparse arrays, unsafe integers and malformed Unicode are
+rejected before state mutation. A signed, attested **guest implementation**
+must execute all eight SHA-256 golden vectors in
+`fixtures/liveview-event-fingerprint-v1.json` as well as the 41 RFC6455 wire
+vectors. See `docs/EVENT_REPLAY_FINGERPRINT_V1.md`. The local Node tests are
+HOST_REFERENCE_ONLY; no five-backend guest parity is claimed.
+

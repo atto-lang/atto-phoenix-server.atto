@@ -16,7 +16,21 @@ const VOID_ELEMENTS = new Set(['input','img','br','hr']);
 
 function fail(message) { throw new Error('ORES_LIVEVIEW_PROTOCOL: ' + message); }
 function assert(cond, message) { if (!cond) fail(message); }
-function boundedString(value, max=MAX_STRING) { assert(typeof value === 'string' && value.length <= max, 'invalid string'); return value; }
+function boundedString(value, max=MAX_STRING) {
+  assert(typeof value === 'string' && value.length <= max, 'invalid string');
+  // The wire contract is Unicode scalar values, not arbitrary JS UTF-16.
+  // Unpaired surrogates stringify as escapes but become replacement glyphs
+  // when inserted into the DOM or encoded by UTF-8 native backends.
+  for (let i=0;i<value.length;i++) {
+    const unit=value.charCodeAt(i);
+    if(unit>=0xD800 && unit<=0xDBFF) {
+      assert(i+1<value.length && value.charCodeAt(i+1)>=0xDC00 &&
+        value.charCodeAt(i+1)<=0xDFFF, 'malformed Unicode scalar value');
+      i++;
+    } else assert(unit<0xDC00 || unit>0xDFFF, 'malformed Unicode scalar value');
+  }
+  return value;
+}
 function validId(value) { return typeof value === 'string' && IDENT.test(value); }
 function serializableSize(value) {
   let json;
@@ -157,10 +171,39 @@ export function validateWsUrl(value, browserLocation) {
 }
 function safePayload(value,depth=0) {
   assert(depth<=8, 'payload too deep');
-  if (value===null || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) return;
-  if (typeof value === 'string') { boundedString(value); return; }
-  if (Array.isArray(value)) { assert(value.length <= 64,'payload array limit'); value.forEach(v=>safePayload(v,depth+1)); return; }
+  if (value===null || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    assert(Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value)),
+      'nonportable numeric payload'); return;
+  }
+  if (typeof value === 'string') {
+    boundedString(value);
+    // JSON can spell lone UTF-16 surrogates, but UTF-8 backends disagree on
+    // how to interpret them. Forbid them at the shared application boundary.
+    for(let i=0;i<value.length;i++){
+      const c=value.charCodeAt(i);
+      if(c>=0xD800 && c<=0xDBFF){
+        assert(i+1<value.length && value.charCodeAt(i+1)>=0xDC00 &&
+          value.charCodeAt(i+1)<=0xDFFF,'malformed Unicode payload'); i++;
+      }else assert(c<0xDC00 || c>0xDFFF,'malformed Unicode payload');
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    assert(value.length <= 64,'payload array limit');
+    for(let i=0;i<value.length;i++){
+      assert(Object.hasOwn(value,i),'sparse event payload array');
+      safePayload(value[i],depth+1);
+    }
+    return;
+  }
   assert(value && typeof value === 'object', 'invalid payload');
+  // Admit JSON records only. Class instances, Dates, accessors and inherited
+  // toJSON hooks can change the bytes actually sent after validation.
+  const proto=Object.getPrototypeOf(value);
+  assert(proto===Object.prototype || proto===null,'non-JSON payload object');
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  assert(Object.values(descriptors).every(d=>Object.hasOwn(d,'value')),'payload accessors forbidden');
   const entries=Object.entries(value);
   assert(entries.length <= 64, 'payload field limit');
   for (const [k,v] of entries) { assert(IDENT.test(k) && !BAD_KEYS.has(k),'invalid payload key'); safePayload(v,depth+1); }
@@ -269,11 +312,16 @@ export class OresLiveView {
   }
   dispatch(name,payload={}) {
     validateEvent(name,payload);
+    // Snapshot once at dispatch, not on each retry: caller-owned mutable
+    // objects must never change an authenticated replay command in flight.
+    let snapshot;
+    try {snapshot=structuredClone(payload);} catch {fail('non-cloneable event payload');}
+    validateEvent(name,snapshot);
     assert(this.queue.length<128,'event queue is full');
     const id=this.uuid();
     assert(typeof id==='string' && EVENT_ID.test(id),'invalid event ID');
     assert(!this.queue.some(entry=>entry.id===id),'duplicate queued event ID');
-    this.queue.push({id,name,payload,sent:false,base_rev:null});
+    this.queue.push({id,name,payload:snapshot,sent:false,base_rev:null});
     this._flush();
     return id;
   }
